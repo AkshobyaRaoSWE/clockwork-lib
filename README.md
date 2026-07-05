@@ -28,7 +28,7 @@ installed (`pros c install LemLib`).
 
 ```bash
 # grab clockwork@x.y.z.zip from the Releases page, then:
-pros c fetch clockwork@1.0.0.zip     # import the template
+pros c fetch clockwork@1.1.0.zip     # import the template
 pros c apply clockwork               # install it into the current project
 ```
 
@@ -97,6 +97,50 @@ the total distance is covered or `timeoutMs` elapses, then stops.
 Distance is measured from the pose at the call site, so the chassis must already
 have a valid pose (call `setPose` first). Pass negative speeds to run the
 profile in reverse.
+
+#### `driveDistance`
+
+```cpp
+void driveDistance(float dist, int maxSpeed = 127, int timeoutMs = 3000,
+                   float headingKp = 2.0f, float settleRange = 1.0f);
+```
+
+Drives `dist` inches relative to the current pose along the current heading,
+slowing proportionally near the target so it arrives cleanly and holding heading
+with a P controller. Positive `dist` drives forward, negative reverses. Blocks
+until settled within `settleRange` inches of the target or `timeoutMs` elapses.
+
+#### `driveTimed`
+
+```cpp
+void driveTimed(int ms, int speed, float headingKp = 2.0f);
+```
+
+Open-loop timed drive: applies `speed` for `ms` milliseconds while holding the
+starting heading, then stops. Useful for ramming into a wall or field element to
+square up.
+
+### `clockwork::Roller`
+
+Wraps a `pros::MotorGroup*` for intakes and rollers — replaces repeated
+`motor1.move(x); motor2.move(x);` pairs with readable commands. Borrows the
+pointer; never owns it.
+
+```cpp
+explicit Roller(pros::MotorGroup* motors, int defaultPower = 127);
+
+void in();                 // spin inward at default power
+void out();                // spin outward at default power
+void stop();               // command 0
+void spin(int power);      // explicit signed power, -127..127
+void pulse(int power, int ms); // spin for ms, then stop (blocking)
+```
+
+```cpp
+clockwork::Roller intake(&intake_motors);
+intake.in();              // start intaking
+intake.pulse(-127, 300);  // eject for 300 ms, then stop
+```
 
 ---
 

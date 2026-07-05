@@ -43,6 +43,38 @@ public:
                            int timeoutMs, int fullSpeed = 127,
                            float headingKp = 2.0f);
 
+    /**
+     * @brief Drive straight a relative distance, holding the current heading.
+     *
+     * Drives @p dist inches from the current pose along the current heading,
+     * slowing proportionally as it approaches the target so it arrives cleanly.
+     * Positive @p dist drives forward, negative drives in reverse. Heading is
+     * held with a P controller and the driver curve is bypassed. Blocks until
+     * the robot settles within @p settleRange of the target or @p timeoutMs
+     * elapses, then stops.
+     *
+     * @param dist        signed distance in inches (+ forward, - reverse)
+     * @param maxSpeed    power cap, 0..127 (default 127)
+     * @param timeoutMs   safety cap; the motion always ends by this time
+     * @param headingKp   heading P gain, power per degree of error (default 2.0)
+     * @param settleRange inches from target counted as "arrived" (default 1.0)
+     */
+    void driveDistance(float dist, int maxSpeed = 127, int timeoutMs = 3000,
+                       float headingKp = 2.0f, float settleRange = 1.0f);
+
+    /**
+     * @brief Drive straight at a fixed power for a fixed time, holding heading.
+     *
+     * Open-loop timed drive: applies @p speed for @p ms milliseconds while
+     * holding the starting heading with a P controller, then stops. Useful for
+     * ramming into a wall or field element to square up.
+     *
+     * @param ms         duration in milliseconds
+     * @param speed      drive power, -127..127
+     * @param headingKp  heading P gain, power per degree of error (default 2.0)
+     */
+    void driveTimed(int ms, int speed, float headingKp = 2.0f);
+
 private:
     lemlib::Chassis* m_chassis;
 };
