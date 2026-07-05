@@ -1,0 +1,13 @@
+# Compiled objects
+*.o
+*.obj
+
+# Build output
+bin/
+.cache/
+.d/
+compile_commands.json
+
+# Editor
+.vscode/
+.DS_Store

@@ -1,0 +1,12 @@
+[
+  {
+    "metadata": {
+      "location": "https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/download/v1.0.0/clockwork@1.0.0.zip"
+    },
+    "name": "clockwork",
+    "py/object": "pros.conductor.templates.base_template.BaseTemplate",
+    "supported_kernels": "^4.2.1",
+    "target": "v5",
+    "version": "1.0.0"
+  }
+]
