@@ -29,6 +29,19 @@ public:
     /// Stop the motors (coast to 0 command).
     void stop();
 
+    /// Actively hold position (sets HOLD brake mode and brakes).
+    void hold();
+
+    /**
+     * @brief Whether the motors are stalled (velocity below a threshold).
+     *
+     * Reports true when the group's actual velocity is under @p velThreshold
+     * RPM — use it to build anti-jam logic (e.g. reverse a burst on a jam).
+     *
+     * @param velThreshold RPM below which the motors count as stalled (default 5)
+     */
+    bool stalled(double velThreshold = 5.0) const;
+
     /// Spin at an explicit signed power, -127..127.
     void spin(int power);
 

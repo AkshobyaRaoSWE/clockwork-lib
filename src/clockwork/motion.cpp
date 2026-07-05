@@ -103,4 +103,52 @@ void Motion::driveTimed(int ms, int speed, float headingKp) {
 	m_chassis->arcade(0, 0, true);
 }
 
+void Motion::turnBy(float degrees, int timeoutMs, int maxSpeed) {
+	const float target = m_chassis->getPose().theta + degrees;
+	lemlib::TurnToHeadingParams params;
+	params.maxSpeed = maxSpeed;
+	// async defaults to true on the chassis; force blocking for a predictable
+	// call-and-wait primitive.
+	m_chassis->turnToHeading(target, timeoutMs, params, false);
+}
+
+bool Motion::driveUntilStalled(int power, int timeoutMs, float headingKp) {
+	const lemlib::Pose start = m_chassis->getPose();
+	const float targetHeading = start.theta;
+	const std::uint32_t t0 = pros::millis();
+	const std::uint32_t graceMs = 250;  // let it start moving before checking
+	const float moveEps = 0.05f;        // inches per 20 ms loop counted as "moving"
+	const std::uint32_t stallHoldMs = 200;
+
+	lemlib::Pose last = start;
+	std::uint32_t stalledSince = 0;
+
+	while (pros::millis() - t0 < static_cast<std::uint32_t>(timeoutMs)) {
+		const lemlib::Pose pose = m_chassis->getPose();
+		const float moved = pose.distance(last);
+		last = pose;
+
+		if (pros::millis() - t0 > graceMs) {
+			if (moved < moveEps) {
+				if (stalledSince == 0) {
+					stalledSince = pros::millis();
+				}
+				if (pros::millis() - stalledSince > stallHoldMs) {
+					m_chassis->arcade(0, 0, true);
+					return true;
+				}
+			} else {
+				stalledSince = 0;
+			}
+		}
+
+		const float herr = lemlib::angleError(targetHeading, pose.theta, false);
+		m_chassis->arcade(power, static_cast<int>(headingKp * herr), true);
+		pros::delay(20);
+	}
+
+	m_chassis->arcade(0, 0, true);
+	return false;
+}
+
 } // namespace clockwork

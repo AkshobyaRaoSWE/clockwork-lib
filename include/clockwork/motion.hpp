@@ -75,6 +75,35 @@ public:
      */
     void driveTimed(int ms, int speed, float headingKp = 2.0f);
 
+    /**
+     * @brief Turn a relative number of degrees from the current heading.
+     *
+     * Thin blocking wrapper over the chassis's tuned angular controller:
+     * turns to `currentHeading + degrees`. Positive turns clockwise, negative
+     * counter-clockwise. Blocks until the turn settles or @p timeoutMs elapses.
+     *
+     * @param degrees   signed degrees to turn (+ clockwise, - counter-clockwise)
+     * @param timeoutMs safety cap (default 1500)
+     * @param maxSpeed  turn power cap, 0..127 (default 127)
+     */
+    void turnBy(float degrees, int timeoutMs = 1500, int maxSpeed = 127);
+
+    /**
+     * @brief Drive straight until the drivetrain stalls, holding heading.
+     *
+     * Applies @p power and holds the starting heading until the robot stops
+     * moving (e.g. it hit a wall or field element) or @p timeoutMs elapses.
+     * Stall is detected from the odometry pose, so no motor-current wiring is
+     * needed. Handy for squaring up against a wall before resetting the pose.
+     *
+     * @param power     drive power, -127..127
+     * @param timeoutMs safety cap (default 3000)
+     * @param headingKp heading P gain, power per degree of error (default 2.0)
+     * @return true if it stalled, false if it timed out first
+     */
+    bool driveUntilStalled(int power, int timeoutMs = 3000,
+                           float headingKp = 2.0f);
+
 private:
     lemlib::Chassis* m_chassis;
 };
