@@ -7,6 +7,22 @@
 
 namespace clockwork {
 
+namespace {
+// Cap on the heading-correction term. Without it, a large transient heading
+// error (e.g. a hard bump) makes `headingKp * err` huge; arcade() then
+// desaturates by stealing power from the throttle, so the robot nearly stops
+// and pivots instead of driving through. Capping keeps enough authority to
+// trim heading while forward motion always wins.
+constexpr int kMaxTurn = 50;
+
+inline int clampTurn(float raw) {
+	int t = static_cast<int>(raw);
+	if (t > kMaxTurn) return kMaxTurn;
+	if (t < -kMaxTurn) return -kMaxTurn;
+	return t;
+}
+} // namespace
+
 Motion::Motion(lemlib::Chassis* chassis) : m_chassis(chassis) {}
 
 void Motion::driveFullThenSlow(float fullDist, float slowDist, int slowSpeed,
@@ -26,7 +42,7 @@ void Motion::driveFullThenSlow(float fullDist, float slowDist, int slowSpeed,
 		const int throttle = (traveled < fullDist) ? fullSpeed : slowSpeed;
 		// Hold the starting heading. angleError returns degrees in (-180, 180].
 		const float err = lemlib::angleError(targetHeading, pose.theta, false);
-		const int turn = static_cast<int>(headingKp * err);
+		const int turn = clampTurn(headingKp * err);
 
 		m_chassis->arcade(throttle, turn, true); // true -> skip driver curve
 		pros::delay(10);
@@ -36,7 +52,7 @@ void Motion::driveFullThenSlow(float fullDist, float slowDist, int slowSpeed,
 }
 
 void Motion::driveDistance(float dist, int maxSpeed, int timeoutMs,
-                           float headingKp, float settleRange) {
+                           float headingKp, float settleRange, float driveKp) {
 	const lemlib::Pose start = m_chassis->getPose();
 	const float targetHeading = start.theta; // degrees
 	const float hRad = lemlib::degToRad(targetHeading);
@@ -45,8 +61,8 @@ void Motion::driveDistance(float dist, int maxSpeed, int timeoutMs,
 	const float sinH = std::sin(hRad);
 	const float cosH = std::cos(hRad);
 
-	const float distKp = 8.0f; // power per inch of remaining distance
-	const int minPower = 12;   // floor to overcome static friction near target
+	const float distKp = driveKp; // power per inch of remaining distance
+	const int minPower = 12;      // floor to overcome static friction near target
 	const int cap = std::abs(maxSpeed);
 
 	const std::uint32_t t0 = pros::millis();
@@ -78,7 +94,7 @@ void Motion::driveDistance(float dist, int maxSpeed, int timeoutMs,
 		const int throttle = (err >= 0) ? mag : -mag;
 
 		const float herr = lemlib::angleError(targetHeading, pose.theta, false);
-		const int turn = static_cast<int>(headingKp * herr);
+		const int turn = clampTurn(headingKp * herr);
 
 		m_chassis->arcade(throttle, turn, true);
 		pros::delay(10);
@@ -95,7 +111,7 @@ void Motion::driveTimed(int ms, int speed, float headingKp) {
 	while (pros::millis() - t0 < static_cast<std::uint32_t>(ms)) {
 		const lemlib::Pose pose = m_chassis->getPose();
 		const float herr = lemlib::angleError(targetHeading, pose.theta, false);
-		const int turn = static_cast<int>(headingKp * herr);
+		const int turn = clampTurn(headingKp * herr);
 		m_chassis->arcade(speed, turn, true);
 		pros::delay(10);
 	}
@@ -143,7 +159,7 @@ bool Motion::driveUntilStalled(int power, int timeoutMs, float headingKp) {
 		}
 
 		const float herr = lemlib::angleError(targetHeading, pose.theta, false);
-		m_chassis->arcade(power, static_cast<int>(headingKp * herr), true);
+		m_chassis->arcade(power, clampTurn(headingKp * herr), true);
 		pros::delay(20);
 	}
 

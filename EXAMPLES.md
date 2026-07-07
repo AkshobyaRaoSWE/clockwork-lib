@@ -101,3 +101,57 @@ void settle_against_bar() {
     intake.hold();              // clamp whatever we're holding
 }
 ```
+
+## 6. Intake with automatic anti-jam (the easy way)
+
+`antiJam()` replaces the hand-rolled stall loop from example 4. Call it once per
+loop right after commanding the intake — it clears jams on its own, without ever
+blocking the rest of your code.
+
+```cpp
+// In opcontrol, or any control loop:
+void run_intake_loop() {
+    while (true) {
+        intake.in();       // keep intaking
+        intake.antiJam();  // auto-reverse a 200 ms burst if it jams, then resume
+        pros::delay(20);
+    }
+}
+```
+
+You can tune the burst if your intake needs a harder or longer kick:
+
+```cpp
+intake.antiJam(127, 300, 200); // 127 power, 300 ms burst, declare jam after 200 ms stalled
+```
+
+## 7. Drive a lift/arm to a target with `PIDController`
+
+lemlib controls the drivetrain, but not your other mechanisms. Use a
+`PIDController` to hold an arm, lift, or flywheel at a target. Here an arm on a
+rotation sensor moves to 120° and holds.
+
+```cpp
+#include "clockwork/clockwork.hpp"
+
+pros::Motor arm(5);
+pros::Rotation armSensor(6);
+
+// kP=0.9 (main push), kI=0 (none needed), kD=4 (damp overshoot),
+// integralCap=50, outputCap=127 (never exceed motor range).
+clockwork::PIDController armPid(0.9f, 0.0f, 4.0f, 50.0f, 127.0f);
+
+void move_arm_to(float targetDeg) {
+    armPid.reset(); // clear history from any previous move
+    while (!armPid.settled(2.0f)) {                 // within 2° and not moving
+        float measured = armSensor.get_position() / 100.0f; // centidegrees -> deg
+        float power = armPid.update(targetDeg - measured);  // error = target - measured
+        arm.move(power);
+        pros::delay(10); // steady loop timing matters — see the tuning guide
+    }
+    arm.brake();
+}
+```
+
+To hold a position forever (e.g. keep an arm up under gravity), skip the
+`settled()` exit and just keep calling `update()` every loop.

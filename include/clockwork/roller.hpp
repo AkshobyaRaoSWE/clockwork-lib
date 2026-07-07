@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pros/motor_group.hpp"
+#include <cstdint>
 
 namespace clockwork {
 
@@ -52,9 +53,35 @@ public:
      */
     void pulse(int power, int ms);
 
+    /**
+     * @brief Non-blocking anti-jam: auto-reverse a burst when the intake jams.
+     *
+     * Call this once per loop, right after commanding the intake (`in()`,
+     * `out()`, or `spin()`). While the intake is commanded to move but its
+     * velocity stays under @p velThreshold for longer than @p jamHoldMs, it is
+     * treated as jammed: the group is reversed at @p reversePower for
+     * @p reverseMs to clear the jam, then the previous command resumes
+     * automatically. Does nothing while the intake is stopped.
+     *
+     * Because it never blocks, it works in both opcontrol and autonomous — the
+     * intake keeps clearing jams on its own while the rest of your loop runs.
+     *
+     * @param reversePower  power for the clearing burst, 0..127 (default 127)
+     * @param reverseMs     how long each clearing burst lasts (default 200 ms)
+     * @param jamHoldMs     stalled time before a jam is declared (default 150 ms)
+     * @param velThreshold  RPM below which the intake counts as stalled (default 5)
+     * @return true while a clearing burst is in progress, false otherwise
+     */
+    bool antiJam(int reversePower = 127, int reverseMs = 200, int jamHoldMs = 150,
+                 double velThreshold = 5.0);
+
 private:
     pros::MotorGroup* m_motors;
     int m_power;
+    int m_lastCommand;               // last power sent via in/out/spin/stop
+    bool m_clearing;                 // currently running an anti-jam burst
+    std::uint32_t m_jamSince;        // when the current stall began (0 = none)
+    std::uint32_t m_clearUntil;      // millis timestamp the burst ends at
 };
 
 } // namespace clockwork

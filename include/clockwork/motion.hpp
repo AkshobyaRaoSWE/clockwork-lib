@@ -58,9 +58,13 @@ public:
      * @param timeoutMs   safety cap; the motion always ends by this time
      * @param headingKp   heading P gain, power per degree of error (default 2.0)
      * @param settleRange inches from target counted as "arrived" (default 1.0)
+     * @param driveKp     distance P gain, motor power per inch of remaining
+     *                    distance (default 8.0). Raise for a snappier approach,
+     *                    lower if it overshoots the target.
      */
     void driveDistance(float dist, int maxSpeed = 127, int timeoutMs = 3000,
-                       float headingKp = 2.0f, float settleRange = 1.0f);
+                       float headingKp = 2.0f, float settleRange = 1.0f,
+                       float driveKp = 8.0f);
 
     /**
      * @brief Drive straight at a fixed power for a fixed time, holding heading.

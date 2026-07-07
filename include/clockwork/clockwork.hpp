@@ -4,4 +4,5 @@
 // Include this single header to pull in the whole public API.
 
 #include "motion.hpp"
+#include "pid.hpp"
 #include "roller.hpp"
