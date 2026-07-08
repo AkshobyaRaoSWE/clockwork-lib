@@ -7,7 +7,7 @@ namespace clockwork {
  *        hold at a target: an arm, a lift, a flywheel, a wall-align, anything.
  *
  * LemLib already PID-controls the *drivetrain* for you. This class is for
- * everything else — the mechanisms lemlib does not touch. You give it the three
+ * everything else, the mechanisms lemlib does not touch. You give it the three
  * gains, then each loop you feed it the error (how far you are from where you
  * want to be) and it hands back a motor power.
  *
@@ -17,16 +17,16 @@ namespace clockwork {
  *
  *     output = kP * error  +  kI * (running sum of error)  +  kD * (change in error)
  *
- * - **kP (proportional)** — the main dial. Output is `kP * error`, so the
+ * - **kP (proportional)** is the main dial. Output is `kP * error`, so the
  *   further you are from the target, the harder it pushes. Too low: the arm
  *   never quite gets there (sags short). Too high: it overshoots and shakes.
  *   Tune this FIRST, with kI and kD at 0, until it reaches the target and only
  *   slightly overshoots.
- * - **kD (derivative)** — the brake. It reacts to how fast the error is
+ * - **kD (derivative)** is the brake. It reacts to how fast the error is
  *   shrinking and pushes back against it, damping the overshoot and wobble that
  *   a high kP causes. Add this SECOND, a little at a time, until the shake from
  *   kP is gone. Too high: it gets jittery / buzzy.
- * - **kI (integral)** — the closer. It accumulates leftover error over time, so
+ * - **kI (integral)** is the closer. It accumulates leftover error over time, so
  *   a small steady offset (e.g. gravity holding an arm just below target) keeps
  *   building output until it is finally corrected. Add this LAST, and keep it
  *   TINY (often 10-100x smaller than kP). Too high: it winds up and oscillates
@@ -36,7 +36,7 @@ namespace clockwork {
  *
  * ### Units
  * `error` is in whatever you measure in (degrees, inches, RPM). `output` is in
- * whatever you drive with — for VEX motors that is -127..127, so set
+ * whatever you drive with. For VEX motors that is -127..127, so set
  * `outputCap` to 127. The gains carry the conversion between the two.
  *
  * ### Loop timing
@@ -90,7 +90,7 @@ public:
      * @brief A simple "have we arrived?" test for exiting a control loop.
      *
      * True when, on the most recent update(), the error is within @p tolerance
-     * AND the error is barely changing (within @p stillness per step) — i.e.
+     * AND the error is barely changing (within @p stillness per step), so
      * the mechanism is both on target and no longer moving, not just passing
      * through the target at speed.
      *

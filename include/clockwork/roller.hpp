@@ -37,7 +37,7 @@ public:
      * @brief Whether the motors are stalled (velocity below a threshold).
      *
      * Reports true when the group's actual velocity is under @p velThreshold
-     * RPM — use it to build anti-jam logic (e.g. reverse a burst on a jam).
+     * RPM. Use it to build your own anti-jam logic, or just reach for antiJam().
      *
      * @param velThreshold RPM below which the motors count as stalled (default 5)
      */
@@ -63,7 +63,7 @@ public:
      * @p reverseMs to clear the jam, then the previous command resumes
      * automatically. Does nothing while the intake is stopped.
      *
-     * Because it never blocks, it works in both opcontrol and autonomous — the
+     * Because it never blocks, it works in both opcontrol and autonomous. The
      * intake keeps clearing jams on its own while the rest of your loop runs.
      *
      * @param reversePower  power for the clearing burst, 0..127 (default 127)

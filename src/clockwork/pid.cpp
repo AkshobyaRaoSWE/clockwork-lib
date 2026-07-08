@@ -11,7 +11,7 @@ PIDController::PIDController(float kP, float kI, float kD, float integralCap,
 
 float PIDController::update(float error) {
 	// Anti-windup: when the error crosses zero (we blew past the target), the
-	// accumulated push is now working against us — drop it.
+	// accumulated push is now working against us, so drop it.
 	if (m_hasPrev && ((error > 0) != (m_prevError > 0))) {
 		m_integral = 0.0f;
 	}

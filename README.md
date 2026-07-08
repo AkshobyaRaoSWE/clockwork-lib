@@ -6,16 +6,19 @@
 ![LemLib](https://img.shields.io/badge/depends-LemLib-green)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
-A small, focused PROS library of motion, intake, and control primitives for the
-VEX V5, built on top of [LemLib](https://lemlib.readthedocs.io/). Install it as
-a PROS template and call clean helpers from your autonomous and driver code — no
-copying source files between projects.
+A small, focused PROS library of motion, intake, and control helpers for the
+VEX V5, built on top of [LemLib](https://lemlib.readthedocs.io/). The idea is
+simple: install it once as a PROS template and call clean helpers from your
+autonomous and driver code, instead of copy-pasting the same motion code into
+every new project.
 
-Created for V5RC team 2360C.
+Written for V5RC team 2360C.
 
-**New to PID / gains / "what is kP"? Jump straight to
-[Understanding gains](#understanding-gains-kp-ki-kd--the-plain-english-guide).
-It explains every tuning number in this library in plain language.**
+**Docs website:** https://akshobyaraoswe.github.io/clockwork-lib/
+
+If PID and gains are new to you, or you have ever wondered what "kP" actually
+means, start with [Understanding gains](#understanding-gains-kp-ki-kd). It
+explains every tuning number in this library in plain words.
 
 ---
 
@@ -25,13 +28,13 @@ It explains every tuning number in this library in plain language.**
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quick start](#quick-start)
-- [Understanding gains (kP, kI, kD) — the plain-English guide](#understanding-gains-kp-ki-kd--the-plain-english-guide)
+- [Understanding gains (kP, kI, kD)](#understanding-gains-kp-ki-kd)
 - [API reference](#api-reference)
   - [`Motion`](#clockworkmotion)
   - [`Roller`](#clockworkroller)
   - [`PIDController`](#clockworkpidcontroller)
 - [Tuning cheat sheet](#tuning-cheat-sheet)
-- [Building & releasing](#building--releasing)
+- [Building and releasing](#building-and-releasing)
 
 ---
 
@@ -39,27 +42,27 @@ It explains every tuning number in this library in plain language.**
 
 | Helper | What it does |
 |--------|--------------|
-| `Motion::driveFullThenSlow` | Two-phase straight drive: full speed, then decelerate to a slower speed |
-| `Motion::driveDistance`     | Relative straight drive with proportional slowdown + heading hold |
-| `Motion::driveTimed`        | Open-loop timed drive holding heading (ram / square-up) |
-| `Motion::turnBy`            | Relative turn using the chassis's tuned angular controller |
-| `Motion::driveUntilStalled` | Drive until the robot stalls against a wall (odometry-based) |
-| `Roller::in/out/stop/spin`  | Readable intake/roller control — no more `motor1.move(); motor2.move();` |
-| `Roller::pulse`             | Timed burst then stop (blocking) |
+| `Motion::driveFullThenSlow` | Drive straight fast, then ease down to a slow speed for a gentle arrival |
+| `Motion::driveDistance`     | Drive a set number of inches, slowing near the target, holding heading |
+| `Motion::driveTimed`        | Push at a fixed power for a fixed time (ram or square up) |
+| `Motion::turnBy`            | Turn a relative number of degrees using the chassis's tuned turn PID |
+| `Motion::driveUntilStalled` | Drive until the robot hits something, detected from odometry |
+| `Roller::in/out/stop/spin`  | Readable intake control, instead of `motor1.move(); motor2.move();` |
+| `Roller::pulse`             | Spin for a set time, then stop (blocking) |
 | `Roller::hold`              | Actively brake-hold position |
-| `Roller::stalled`           | Query stall state |
-| **`Roller::antiJam`**       | **Non-blocking auto-reverse when the intake jams, then resume** |
-| **`PIDController`**         | **Reusable PID for any subsystem lemlib doesn't drive (arm, lift, flywheel)** |
+| `Roller::stalled`           | Ask whether the intake is stalled |
+| **`Roller::antiJam`**       | **Clears intake jams on its own, without blocking your loop** |
+| **`PIDController`**         | **A reusable PID for anything LemLib doesn't drive: arm, lift, flywheel** |
 
-Everything is generic and owns nothing: `Motion` wraps a `lemlib::Chassis*`,
-`Roller` wraps a `pros::MotorGroup*`, and `PIDController` is standalone. You
-keep full control of your own devices.
+Nothing here owns your hardware. `Motion` borrows a `lemlib::Chassis*`, `Roller`
+borrows a `pros::MotorGroup*`, and `PIDController` is standalone. You keep full
+control of your own devices.
 
 ---
 
 ## Requirements
 
-- A PROS project (kernel `^4.2.1`)
+- A PROS project on kernel `^4.2.1`
 - **LemLib** installed in that project (`pros c install LemLib`)
 
 ---
@@ -70,7 +73,7 @@ keep full control of your own devices.
 
 ```bash
 pros c add-depot clockwork https://raw.githubusercontent.com/AkshobyaRaoSWE/clockwork-lib/main/depot.json
-pros c apply clockwork          # installs the latest version
+pros c apply clockwork
 ```
 
 ### From a release zip
@@ -81,20 +84,23 @@ pros c fetch clockwork@1.3.0.zip
 pros c apply clockwork
 ```
 
-> **Gotcha:** `pros c apply <path-to-zip>` does *not* read a filesystem path —
-> it parses it as a `name@version` query. Always `pros c fetch <zip>` first,
-> then `pros c apply clockwork`.
+One thing that trips people up: `pros c apply <path-to-zip>` does not read a file
+path. It reads the argument as a `name@version` query. So always `fetch` the zip
+first, then `apply clockwork`.
 
-To upgrade later: `pros c apply clockwork` again after the depot refreshes.
+To upgrade later, run `pros c apply clockwork` again once the depot refreshes.
 
 ---
 
 ## Quick start
 
+Point the helpers at your own `chassis` and intake motor group, then call them
+from your routines.
+
 ```cpp
 #include "clockwork/clockwork.hpp"
 
-// `chassis` and `intake_motors` are your own configured globals.
+// chassis and intake_motors are your own configured globals.
 clockwork::Motion motion(&chassis);
 clockwork::Roller intake(&intake_motors);
 
@@ -102,13 +108,13 @@ void autonomous() {
     chassis.setPose(0, 0, 0);
 
     intake.in();                          // start intaking
-    motion.driveDistance(30, 110, 2000);  // drive 30 in, heading-held
-    motion.turnBy(90);                    // turn 90° clockwise
+    motion.driveDistance(30, 110, 2000);  // drive 30 in, heading held
+    motion.turnBy(90);                    // turn 90 deg clockwise
     motion.driveFullThenSlow(18, 6, 40, 1500); // fast, then gentle arrival
     intake.pulse(-127, 300);              // eject for 300 ms
 
     if (motion.driveUntilStalled(70, 1200)) // ram the wall
-        chassis.setPose(0, 0, 0);           // ...and reset odom if we hit it
+        chassis.setPose(0, 0, 0);           // and reset odom if we hit it
 }
 
 void opcontrol() {
@@ -120,117 +126,106 @@ void opcontrol() {
 }
 ```
 
-More end-to-end routines: **[EXAMPLES.md](EXAMPLES.md)**.
+More complete routines are in **[EXAMPLES.md](EXAMPLES.md)**.
 
 ---
 
-## Understanding gains (kP, kI, kD) — the plain-English guide
+## Understanding gains (kP, kI, kD)
 
-Every "Kp" in this library is one idea: **how hard should the robot push to fix
-a mistake?** You do not need any control-theory background. This section explains
-it once, in words, and then everything else clicks.
+Every "Kp" in this library is really one question: **how hard should the robot
+push to fix a mistake?** You do not need any control-theory background for this.
+Read it once and the rest of the library makes sense.
 
 ### The one idea behind all of it
 
-A controller is a loop that runs many times a second and asks one question:
+A controller is a loop that runs many times a second and asks one thing:
 
-> *How far am I from where I want to be?*
+> How far am I from where I want to be?
 
-That gap is called the **error**. For a drive it might be "12 inches short of the
-target." For an arm it might be "30 degrees below where I want it." The
-controller turns that error into a motor power, waits a few milliseconds, checks
-again, and repeats until the error is basically zero.
+That gap is the **error**. For a drive it might be "12 inches short of the
+target." For an arm it might be "30 degrees too low." The controller turns that
+error into a motor power, waits a few milliseconds, checks again, and repeats
+until the error is basically zero. The gains decide how it turns error into
+power.
 
-The only question is *how* it turns error into power. That is what the gains
-control.
+### kP, the proportional gain (the main dial)
 
-### kP — the proportional gain (the main dial)
+**Power = kP times error.** The bigger the mistake, the harder it pushes, and it
+eases off on its own as it gets close. Picture a spring pulling the robot toward
+the target, and kP is how stiff that spring is.
 
-**Power = kP × error.** The bigger the mistake, the harder it pushes; as it gets
-close, it eases off automatically. `kP` is just the multiplier.
-
-Think of a spring pulling the robot toward the target. `kP` is the stiffness of
-that spring.
-
-- **Too low:** weak spring. The robot creeps in slowly, or stops *short* of the
-  target because there's not enough push left to finish (an arm sags below where
-  you wanted it).
-- **Too high:** violent spring. The robot races in and *overshoots*, then
-  overshoots the other way — it oscillates or shakes.
+- **Too low:** weak spring. It creeps in slowly, or stops short of the target
+  (an arm sags below where you wanted it).
+- **Too high:** violent spring. It races in and overshoots, then overshoots the
+  other way. It shakes.
 - **Just right:** reaches the target quickly with only a tiny overshoot.
 
-**`kP` is the one you tune first, and it does 90% of the work.**
+This is the one you tune first, and it does about 90% of the work. In this
+library, `headingKp` (default `2.0`) and `driveKp` (default `8.0`) are both pure
+kP dials. `headingKp` is how hard the robot corrects a drift in the direction it
+is facing, and `driveKp` is how hard it pushes toward a distance target.
 
-In this library, `headingKp` (default `2.0`) and `driveKp` (default `8.0`) are
-both pure `kP` dials: `headingKp` is how hard the robot corrects a drift in the
-direction it's facing; `driveKp` is how hard it pushes toward a distance target.
+### kD, the derivative gain (the brake)
 
-### kD — the derivative gain (the brake)
+A stiff kP overshoots because it keeps pushing hard right up until it arrives, so
+momentum carries it past. kD is the shock absorber. It watches how fast the error
+is shrinking and pushes back against fast approaches.
 
-A stiff `kP` overshoots because it's still pushing hard right up until it reaches
-the target, so momentum carries it past. `kD` fixes that. It watches **how fast
-the error is shrinking** and pushes *back* against fast approaches — it's a shock
-absorber.
+- It adds a braking force that grows the faster you are closing in.
+- It lets you run a higher kP (fast) without the overshoot (sloppy).
+- Too high, and it fights every little sensor wiggle, so the mechanism buzzes.
 
-- Adds a braking force that grows the faster you're closing in.
-- Lets you run a higher `kP` (fast) without the overshoot (sloppy).
-- **Too high:** it fights every tiny sensor wiggle and the mechanism buzzes /
-  gets jittery.
+Tune kD second, after kP, to kill the shake that kP left behind.
 
-**Tune `kD` second, after `kP`, to kill the shake `kP` left behind.**
+### kI, the integral gain (the closer, use sparingly)
 
-### kI — the integral gain (the closer, use sparingly)
+Sometimes it settles near the target but never quite reaches it, a small steady
+offset. The classic case is an arm held up against gravity, where kP's push at a
+tiny error is not quite enough to hold it level. kI fixes that last sliver by
+adding up the leftover error over time, so as long as any error remains, kI's
+contribution keeps growing until it is finally strong enough to close the gap.
 
-Sometimes the robot settles *near* the target but never quite reaches it — a
-small steady offset. Classic case: an arm held up against gravity, where `kP`'s
-push at a tiny error isn't quite enough to hold it exactly level. `kI` fixes that
-last sliver.
-
-It **adds up** all the leftover error over time. As long as any error remains,
-`kI`'s contribution keeps growing until it's finally strong enough to close the
-gap.
-
-- Only cures a small, *persistent* offset. It does nothing for speed or
-  overshoot — that's `kP` and `kD`.
-- **Keep it tiny** — often 10× to 100× smaller than `kP`.
-- **Too high:** it "winds up" (over-accumulates) and causes slow, lazy
+- It only cures a small, persistent offset. It does nothing for speed or
+  overshoot, that is kP and kD.
+- Keep it tiny, often 10 to 100 times smaller than kP.
+- Too high, and it winds up (over-accumulates) and causes slow, lazy
   oscillation.
-- Many mechanisms work great with **`kI = 0`.** Start there.
+- Plenty of mechanisms are perfect with `kI = 0`. Start there.
 
-`clockwork::PIDController` guards against wind-up automatically: it caps the
+`clockwork::PIDController` guards against wind-up for you. It caps the
 accumulated sum (`integralCap`) and clears it whenever the error crosses zero, so
 a big move can't leave a huge leftover push waiting to overshoot.
 
 ### The tuning recipe (do this in order)
 
 1. Set `kI = 0` and `kD = 0`.
-2. Raise **`kP`** until the mechanism reaches the target quickly and overshoots
-   just a little. If it shakes hard, you've gone too far — back off.
-3. Raise **`kD`** until that overshoot/shake is smoothed out. If it starts
-   buzzing, back off.
-4. *Only if* it still stops slightly short of the target, add a **tiny `kI`**
-   (start ~1/50th of `kP`) until it closes the gap. Otherwise leave `kI = 0`.
+2. Raise **kP** until the mechanism reaches the target quickly and overshoots
+   just a little. If it shakes hard, you went too far, so back off.
+3. Raise **kD** until that overshoot and shake smooth out. If it starts buzzing,
+   back off.
+4. Only if it still stops slightly short of the target, add a **tiny kI** (start
+   around 1/50th of kP) until it closes the gap. Otherwise leave `kI = 0`.
 
-> Golden rule: **P, then D, then maybe I.** Change one gain at a time and watch
-> what it does before touching the next.
+Golden rule: **P, then D, then maybe I.** Change one gain at a time and watch
+what it does before you touch the next.
 
-### Symptom → which gain
+### Symptom, then which gain
 
 | What you see | Likely cause | Do this |
 |--------------|--------------|---------|
-| Reaches target too slowly / stops short | `kP` too low | Raise `kP` |
-| Overshoots then oscillates | `kP` too high | Lower `kP`, or add `kD` |
-| Fast approach but shakes at the end | Needs damping | Add / raise `kD` |
-| Buzzes or jitters constantly | `kD` too high | Lower `kD` |
-| Settles just below/short of target forever | Steady offset | Add a tiny `kI` |
-| Slow lazy wobble that won't die | `kI` wind-up | Lower `kI`, or set it to 0 |
+| Reaches target too slowly, or stops short | kP too low | Raise kP |
+| Overshoots then oscillates | kP too high | Lower kP, or add kD |
+| Fast approach but shakes at the end | Needs damping | Add or raise kD |
+| Buzzes or jitters constantly | kD too high | Lower kD |
+| Settles just short of target forever | Steady offset | Add a tiny kI |
+| Slow lazy wobble that won't die | kI wind-up | Lower kI, or set it to 0 |
 
 ### One thing that matters: loop timing
 
-A controller assumes it runs at a **steady rhythm**. Always put a fixed delay in
-your loop (`pros::delay(10)` is typical) and keep it the same. If you change the
-loop delay, your tuned gains change meaning and you'll need to re-tune. This is
-why every example here ends its loop with a `pros::delay`.
+A controller assumes it runs at a steady rhythm. Always put a fixed delay in your
+loop (`pros::delay(10)` is typical) and keep it the same. If you change the loop
+delay, your tuned gains change meaning and you have to re-tune. That is why every
+example here ends its loop with a `pros::delay`.
 
 ---
 
@@ -239,13 +234,13 @@ why every example here ends its loop with a `pros::delay`.
 ### `clockwork::Motion`
 
 ```cpp
-explicit Motion(lemlib::Chassis* chassis);
+clockwork::Motion motion(&chassis);
 ```
 
-All drive helpers hold the starting heading with a P controller (`headingKp`) and
-bypass the driver curve. Distance-based helpers measure from the pose at the call
-site, so the chassis must have a valid pose first (`setPose`). Pass negative
-speeds / distances to run in reverse.
+Every drive helper holds the heading it started at with a P controller
+(`headingKp`) and bypasses the driver curve. The distance-based helpers measure
+from the pose at the moment you call them, so give the chassis a valid pose first
+with `setPose`. Pass negative speeds or distances to run in reverse.
 
 | Method | Signature |
 |--------|-----------|
@@ -253,28 +248,30 @@ speeds / distances to run in reverse.
 | `driveDistance`     | `(float dist, int maxSpeed = 127, int timeoutMs = 3000, float headingKp = 2.0f, float settleRange = 1.0f, float driveKp = 8.0f)` |
 | `driveTimed`        | `(int ms, int speed, float headingKp = 2.0f)` |
 | `turnBy`            | `(float degrees, int timeoutMs = 1500, int maxSpeed = 127)` |
-| `driveUntilStalled` | `(int power, int timeoutMs = 3000, float headingKp = 2.0f) → bool` |
+| `driveUntilStalled` | `(int power, int timeoutMs = 3000, float headingKp = 2.0f)` returns `bool` |
 
-- **`driveFullThenSlow`** — full speed for `fullDist` inches, then `slowSpeed`
-  for the next `slowDist` inches. Fast approach, soft arrival.
-- **`driveDistance`** — drive `dist` inches, slowing proportionally near the
-  target; settles within `settleRange` inches or times out. `driveKp` sets how
-  hard it pushes per inch remaining (raise for snappier, lower if it overshoots).
-- **`driveTimed`** — apply `speed` for `ms` milliseconds, then stop.
-- **`turnBy`** — turn `degrees` relative to the current heading (+ clockwise)
-  using the chassis's own angular PID. Blocking.
-- **`driveUntilStalled`** — drive at `power` until the robot stops moving
-  (wall/obstacle) or times out. Returns `true` if it stalled, `false` if it
-  timed out. Great for wall alignment before an odom reset.
+- **driveFullThenSlow** runs full speed for `fullDist` inches, then `slowSpeed`
+  for the next `slowDist`. Fast approach, soft arrival.
+- **driveDistance** drives `dist` inches, easing off near the target, settling
+  within `settleRange` inches or timing out. `driveKp` sets how hard it pushes
+  per inch remaining (raise for a snappier approach, lower if it overshoots).
+- **driveTimed** applies `speed` for `ms` milliseconds, then stops.
+- **turnBy** turns `degrees` relative to your current heading (positive is
+  clockwise) using the chassis's own turn PID. It blocks until it settles.
+- **driveUntilStalled** drives at `power` until the robot stops moving (a wall,
+  an obstacle) or times out. It returns `true` if it actually stalled. Great for
+  squaring on a wall before an odom reset.
 
-**`headingKp`** and **`driveKp`** are the `kP` gains explained
-[above](#understanding-gains-kp-ki-kd--the-plain-english-guide). Defaults are
-sane starting points; tune on your own robot.
+The heading correction is internally clamped, so a hard bump can't produce a
+giant turn command that steals power from the throttle. Forward motion always
+keeps priority. `headingKp` and `driveKp` are the kP gains explained
+[above](#understanding-gains-kp-ki-kd). The defaults are sane starting points, so
+tune them on your own robot.
 
 ### `clockwork::Roller`
 
 ```cpp
-explicit Roller(pros::MotorGroup* motors, int defaultPower = 127);
+clockwork::Roller intake(&intake_motors, 127); // second arg is the default power
 ```
 
 | Method | Description |
@@ -282,51 +279,54 @@ explicit Roller(pros::MotorGroup* motors, int defaultPower = 127);
 | `in()`  | spin inward at the default power |
 | `out()` | spin outward at the default power |
 | `stop()` | command 0 |
-| `spin(int power)` | explicit signed power, −127..127 |
-| `pulse(int power, int ms)` | spin for `ms`, then stop (blocking) |
+| `spin(int power)` | explicit signed power, -127 to 127 |
+| `pulse(int power, int ms)` | spin for `ms`, then stop (this one blocks) |
 | `hold()` | set HOLD brake mode and brake in place |
-| `stalled(double velThreshold = 5.0) → bool` | true if velocity is under `velThreshold` RPM |
-| `antiJam(int reversePower = 127, int reverseMs = 200, int jamHoldMs = 150, double velThreshold = 5.0) → bool` | non-blocking auto-reverse on jam |
+| `stalled(double velThreshold = 5.0)` | `true` if velocity is under `velThreshold` RPM |
+| `antiJam(int reversePower = 127, int reverseMs = 200, int jamHoldMs = 150, double velThreshold = 5.0)` | non-blocking auto-reverse on a jam |
 
-**`antiJam`** is the recommended way to keep an intake clear. Call it once per
-loop *after* commanding the intake (`in`/`out`/`spin`). If the intake is
+`antiJam` is the easy way to keep an intake clear. Call it once per loop right
+after you command the intake (`in`, `out`, or `spin`). It reads the last power
+you sent, so it always knows which way you meant to run. If the intake is
 commanded to move but its velocity stays under `velThreshold` for longer than
 `jamHoldMs`, it reverses at `reversePower` for `reverseMs` to clear the jam, then
-resumes the previous command — all without blocking your loop. Returns `true`
-while a clearing burst is in progress. Does nothing while the intake is stopped.
+resumes the previous command, all without blocking your loop. It returns `true`
+while a clearing burst is in progress, and does nothing while the intake is
+stopped.
 
 ```cpp
 while (true) {
     intake.in();
-    intake.antiJam();      // auto-clears jams; resumes intaking on its own
+    intake.antiJam();      // clears jams and resumes intaking on its own
     pros::delay(20);
 }
 ```
 
+It works off motor velocity, not current, so a motor that free-spins without
+intaking reads as "moving" and won't false-trigger. The flip side: a slipping jam
+where the motor still spins won't be caught. Keep calling it every loop, or a
+burst in progress never gets cancelled.
+
 ### `clockwork::PIDController`
 
 ```cpp
-PIDController(float kP, float kI, float kD,
-              float integralCap = 0.0f, float outputCap = 0.0f);
+clockwork::PIDController pid(kP, kI, kD, integralCap = 0.0f, outputCap = 0.0f);
 ```
 
-A standalone PID for any subsystem lemlib doesn't drive — an arm, a lift, a
-flywheel, a wall-align. See the
-[gains guide](#understanding-gains-kp-ki-kd--the-plain-english-guide) for what
-the three numbers mean and how to tune them.
+A standalone PID for anything LemLib doesn't drive: an arm, a lift, a flywheel, a
+wall-align. See [Understanding gains](#understanding-gains-kp-ki-kd) for what the
+three numbers mean and how to tune them.
 
 | Method | Description |
 |--------|-------------|
-| `update(float error) → float` | Call every loop with `target - measured`; returns a motor power (clamped to `outputCap` if set) |
-| `reset()` | Forget history (integral sum + last error). Call at the start of a new move |
-| `setGains(float kP, float kI, float kD)` | Swap gains at runtime (e.g. loaded vs. empty) |
-| `settled(float tolerance, float stillness = 1.0f) → bool` | True when the error is within `tolerance` **and** barely changing — i.e. actually arrived, not just passing through |
+| `update(float error)` returns `float` | Call every loop with `target - measured`. Returns a motor power, clamped to `outputCap` if you set one |
+| `reset()` | Forget history (the integral sum and last error). Call it at the start of a new move |
+| `setGains(float kP, float kI, float kD)` | Swap gains at runtime, for example loaded versus empty |
+| `settled(float tolerance, float stillness = 1.0f)` | `true` when the error is within `tolerance` and barely changing, so it has actually arrived rather than passing through at speed |
 
-Constructor extras:
-- **`integralCap`** — absolute limit on the accumulated integral (anti-windup).
-  `0` disables it.
-- **`outputCap`** — absolute limit on the returned power. **Pass `127`** so
-  `update()` never returns an out-of-range motor command. `0` disables it.
+Two constructor extras: `integralCap` limits how much the integral can build up
+(anti-windup; `0` disables it), and `outputCap` limits the returned power. Pass
+`127` for `outputCap` so `update()` never hands a motor an out-of-range command.
 
 ```cpp
 // arm: kP=0.9, kI=0, kD=4, integral cap 50, output clamped to motor range
@@ -337,54 +337,54 @@ void moveArmTo(float targetDeg) {
     while (!armPid.settled(2.0f)) {
         float measured = armSensor.get_position() / 100.0f;
         arm.move(armPid.update(targetDeg - measured));
-        pros::delay(10); // steady loop timing — see the gains guide
+        pros::delay(10); // steady loop timing, see the gains guide
     }
     arm.brake();
 }
 ```
 
+To hold a position forever, like keeping an arm up under gravity, skip the
+`settled()` exit and just keep calling `update()` every loop.
+
 ---
 
 ## Tuning cheat sheet
 
-- **`headingKp`** (default `2.0`) — power per degree of heading error during
-  straight drives. Robot drifts off heading → raise it. Robot wags side to side
-  → lower it. (The turn correction is internally capped so a big bump can't
-  hijack the drive — forward motion always wins.)
-- **`driveKp`** (default `8.0`, `driveDistance` only) — power per inch of
-  remaining distance. Arrives too slowly → raise it. Overshoots the target →
-  lower it.
-- **`settleRange`** (default `1.0` in) — how close counts as "arrived." Tighten
+- **`headingKp`** (default `2.0`): power per degree of heading error during
+  straight drives. If the robot drifts off heading, raise it. If it wags side to
+  side, lower it.
+- **`driveKp`** (default `8.0`, `driveDistance` only): power per inch of
+  remaining distance. If it arrives too slowly, raise it. If it overshoots the
+  target, lower it.
+- **`settleRange`** (default `1.0` in): how close counts as "arrived." Tighten
   for precision, loosen if it hunts around the target.
 - **`driveUntilStalled`** treats "stopped" as very little pose movement over a
-  short window. Fine on a normal drivetrain; if your odom is noisy, give it a
-  longer timeout.
-- **`PIDController`** — follow the recipe in the gains guide: **P, then D, then
-  maybe I.**
+  short window. That is fine on a normal drivetrain, but if your odom is noisy,
+  give it a longer timeout.
+- **`PIDController`**: follow the recipe in the gains guide, P then D then maybe I.
 
-All gains here are starting points, not tuned for any specific robot. Tune on
+All the gains here are starting points, not tuned for any specific robot. Tune on
 the field.
 
 ---
 
-## Building & releasing
+## Building and releasing
 
-Requires the PROS toolchain (`pros` + `arm-none-eabi` on your `PATH`).
+You need the PROS toolchain (`pros` and `arm-none-eabi`) on your PATH.
 
 ```bash
 pros make            # build the project + bin/clockwork.a
 pros make template   # package clockwork@<version>.zip
 ```
 
-To cut a release: bump `VERSION` in the `Makefile`, `pros make template`, attach
-the zip to a GitHub release, and add an entry to `depot.json`.
-
-The template ships only the public headers (`include/clockwork/*.hpp`) and the
+To cut a release: bump `VERSION` in the `Makefile`, run `pros make template`,
+attach the zip to a GitHub release, and add an entry to `depot.json`. The
+template ships only the public headers (`include/clockwork/*.hpp`) and the
 compiled archive (`firmware/clockwork.a`).
 
 ---
 
-## Versioning & changelog
+## Versioning and changelog
 
 Semantic versioning. See **[CHANGELOG.md](CHANGELOG.md)**.
 
@@ -394,4 +394,4 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

@@ -2,7 +2,7 @@
 
 Full routines using the CLOCKWORK library. In each, `chassis` is a configured
 `lemlib::Chassis` and `intake` is a `clockwork::Roller` wrapping your intake
-motor group — both declared as globals in your own `robot.cpp`.
+motor group, both declared as globals in your own `robot.cpp`.
 
 ```cpp
 // robot.cpp
@@ -48,7 +48,7 @@ void align_to_wall() {
     chassis.setPose(0, 0, 0);
 
     if (motion.driveUntilStalled(70, 1500)) {
-        // squared against the wall — reset the known axis
+        // squared against the wall, reset the known axis
         lemlib::Pose p = chassis.getPose();
         chassis.setPose(p.x, 0, 0);
     }
@@ -105,7 +105,7 @@ void settle_against_bar() {
 ## 6. Intake with automatic anti-jam (the easy way)
 
 `antiJam()` replaces the hand-rolled stall loop from example 4. Call it once per
-loop right after commanding the intake — it clears jams on its own, without ever
+loop right after commanding the intake. It clears jams on its own, without ever
 blocking the rest of your code.
 
 ```cpp
@@ -147,7 +147,7 @@ void move_arm_to(float targetDeg) {
         float measured = armSensor.get_position() / 100.0f; // centidegrees -> deg
         float power = armPid.update(targetDeg - measured);  // error = target - measured
         arm.move(power);
-        pros::delay(10); // steady loop timing matters — see the tuning guide
+        pros::delay(10); // steady loop timing matters, see the tuning guide
     }
     arm.brake();
 }

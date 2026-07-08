@@ -3,20 +3,20 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [1.3.0] — 2026-07-07
+## [1.3.0] - 2026-07-07
 
 ### Added
-- `clockwork::PIDController` — a standalone, reusable PID controller for any
+- `clockwork::PIDController`, a standalone, reusable PID controller for any
   subsystem lemlib does not drive (arm, lift, flywheel, wall-align). Includes
   anti-windup (integral cap + zero-cross reset), an output clamp, and a
   `settled()` helper. The README ships an in-depth, plain-language guide to
   what kP / kI / kD actually do and how to tune them.
-- `Roller::antiJam(reversePower, reverseMs, jamHoldMs, velThreshold)` —
+- `Roller::antiJam(reversePower, reverseMs, jamHoldMs, velThreshold)`
   non-blocking anti-jam. Call it once per loop after commanding the intake; it
   auto-reverses a short burst when a jam is detected, then resumes the previous
   command. Works in both opcontrol and autonomous.
 - `Motion::driveDistance` now takes an optional `driveKp` parameter (default
-  `8.0`) so the distance gain — previously a hidden internal constant — can be
+  `8.0`) so the distance gain, previously a hidden internal constant, can be
   tuned per robot.
 
 ### Fixed
@@ -27,33 +27,33 @@ All notable changes to this project are documented here. This project follows
   and pivot instead of driving through the disturbance. Forward motion now
   always keeps priority.
 
-## [1.2.0] — 2026-07-05
+## [1.2.0] - 2026-07-05
 
 ### Added
-- `Motion::turnBy(degrees, timeoutMs, maxSpeed)` — relative turn using the
+- `Motion::turnBy(degrees, timeoutMs, maxSpeed)`, relative turn using the
   chassis's tuned angular controller (blocking).
-- `Motion::driveUntilStalled(power, timeoutMs, headingKp)` — drive until the
+- `Motion::driveUntilStalled(power, timeoutMs, headingKp)`, drive until the
   robot stalls against a wall/obstacle, detected from odometry; returns whether
   it stalled. Useful for wall alignment before an odom reset.
-- `Roller::hold()` — set HOLD brake mode and brake in place.
-- `Roller::stalled(velThreshold)` — query stall state to build anti-jam logic.
+- `Roller::hold()`, set HOLD brake mode and brake in place.
+- `Roller::stalled(velThreshold)`, query stall state to build anti-jam logic.
 
-## [1.1.0] — 2026-07-05
+## [1.1.0] - 2026-07-05
 
 ### Added
-- `Motion::driveDistance(dist, maxSpeed, timeoutMs, headingKp, settleRange)` —
+- `Motion::driveDistance(dist, maxSpeed, timeoutMs, headingKp, settleRange)`
   relative straight drive with proportional slowdown and heading hold.
-- `Motion::driveTimed(ms, speed, headingKp)` — open-loop timed drive holding
+- `Motion::driveTimed(ms, speed, headingKp)`, open-loop timed drive holding
   heading.
-- `Roller` — motor-group wrapper (`in/out/stop/spin/pulse`) that replaces the
+- `Roller`, motor-group wrapper (`in/out/stop/spin/pulse`) that replaces the
   repeated `motor1.move(x); motor2.move(x);` pattern.
 
-## [1.0.0] — 2026-07-04
+## [1.0.0] - 2026-07-04
 
 ### Added
 - Initial release.
 - `Motion::driveFullThenSlow(fullDist, slowDist, slowSpeed, timeoutMs,
-  fullSpeed, headingKp)` — two-phase straight drive (full speed then decelerate)
+  fullSpeed, headingKp)`, two-phase straight drive (full speed then decelerate)
   with a P heading hold.
 - PROS template packaging + `depot.json` for `pros c add-depot`.
 

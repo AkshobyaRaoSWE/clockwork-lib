@@ -1,6 +1,6 @@
 # Contributing to CLOCKWORK
 
-Thanks for your interest. This is a small library — the bar is simple, generic,
+Thanks for your interest. This is a small library, and the bar is simple, generic,
 well-tested motion/intake helpers that sit on top of PROS + LemLib.
 
 ## Ground rules
