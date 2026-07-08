@@ -29,7 +29,7 @@ IS_LIBRARY:=1
 # Be sure that your header files are in the include directory inside of a folder with the
 # same name as what you set LIBNAME to below.
 LIBNAME:=clockwork
-VERSION:=1.3.0
+VERSION:=1.4.0
 CREATE_TEMPLATE_FLAGS:=--kernels "^4.2.1"
 # EXCLUDE_SRC_FROM_LIB= $(SRCDIR)/unpublishedfile.c
 # this line excludes opcontrol.c and similar files
@@ -41,6 +41,12 @@ EXCLUDE_SRC_FROM_LIB+=$(foreach file, $(SRCDIR)/main,$(foreach cext,$(CEXTS),$(f
 TEMPLATE_FILES=$(INCDIR)/$(LIBNAME)/*.h $(INCDIR)/$(LIBNAME)/*.hpp
 
 .DEFAULT_GOAL=quick
+
+# Host-side tests for the pure-logic classes (no PROS / no brain needed).
+# Run with `make test`.
+.PHONY: test
+test:
+	@bash $(ROOT)/test/run.sh
 
 ################################################################################
 ################################################################################

@@ -7,3 +7,5 @@
 #include "motion.hpp"
 #include "pid.hpp"
 #include "roller.hpp"
+#include "selector.hpp"
+#include "slew.hpp"
