@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CLOCKWORK — VEX V5 motion & control library</title>
+<title>CLOCKWORK, VEX V5 motion & control library</title>
 <meta name="description" content="A small PROS library of motion, intake, and control primitives for the VEX V5, built on LemLib. Includes a plain-English guide to PID gains.">
 <style>
   :root {
@@ -156,10 +156,10 @@
 </style>
 </head>
 <body>
-<div class="mobile-top"><span class="mark">CLOCKWORK</span> <span class="muted" style="font-size:12px">· VEX V5 · v1.3.0</span></div>
+<div class="mobile-top"><span class="mark">CLOCKWORK</span> <span class="muted" style="font-size:12px">· VEX V5 · v1.4.0</span></div>
 <div class="layout">
   <aside>
-    <div class="brand"><span class="mark">CLOCKWORK</span><span class="ver">v1.3.0</span></div>
+    <div class="brand"><span class="mark">CLOCKWORK</span><span class="ver">v1.4.0</span></div>
     <p class="brand-sub">VEX V5 motion &amp; control, on LemLib</p>
     <nav id="nav">
       <div class="group">Start</div>
@@ -172,8 +172,11 @@
       <a href="#motion">Motion</a>
       <a href="#roller">Roller &amp; anti-jam</a>
       <a href="#pid">PIDController</a>
+      <a href="#selector">Auton selector</a>
+      <a href="#slew">Slew limiter</a>
       <div class="group">More</div>
       <a href="#examples">Examples</a>
+      <a href="#testing">Testing</a>
       <a href="#building">Building &amp; releasing</a>
     </nav>
     <div class="side-links">
@@ -213,6 +216,8 @@
         <tr><td><code>Roller</code></td><td>Readable intake control: <code>in / out / stop / spin / pulse / hold</code></td></tr>
         <tr><td><code>Roller::antiJam</code></td><td>Clears intake jams on its own, without blocking your loop</td></tr>
         <tr><td><code>PIDController</code></td><td>A reusable PID for anything LemLib doesn't drive: arm, lift, flywheel</td></tr>
+        <tr><td><code>AutonSelector</code></td><td>Pick an autonomous routine from the controller before the match</td></tr>
+        <tr><td><code>SlewRateLimiter</code></td><td>Ramp a value so a hard joystick shove can't wheelie or brown out</td></tr>
       </table>
       </div>
       <p class="muted">Nothing here owns your hardware. <code>Motion</code> borrows a <code>lemlib::Chassis*</code>, <code>Roller</code> borrows a <code>pros::MotorGroup*</code>, and <code>PIDController</code> is standalone. You keep full control of your own devices.</p>
@@ -227,7 +232,7 @@
       <pre><code>pros c add-depot clockwork https://raw.githubusercontent.com/AkshobyaRaoSWE/clockwork-lib/main/depot.json
 pros c apply clockwork</code></pre>
       <h5>From a release zip</h5>
-      <pre><code>pros c fetch clockwork@1.3.0.zip
+      <pre><code>pros c fetch clockwork@1.4.0.zip
 pros c apply clockwork</code></pre>
       <div class="note warn"><span class="lbl">Heads up</span><code>pros c apply &lt;path-to-zip&gt;</code> does not read a file path. It reads the argument as a <code>name@version</code> query. So always <code>fetch</code> the zip first, then <code>apply clockwork</code>.</div>
       <p>To upgrade later, just run <code>pros c apply clockwork</code> again once the depot refreshes.</p>
@@ -431,6 +436,63 @@ clockwork::<span class="tok-type">PIDController</span> armPid(<span class="tok-n
       <p class="muted">To hold a position forever, like keeping an arm up under gravity, skip the <code>settled()</code> exit and just keep calling <code>update()</code> every loop.</p>
     </section>
 
+    <!-- SELECTOR -->
+    <section id="selector">
+      <h2>Reference</h2>
+      <h3>clockwork::AutonSelector</h3>
+      <pre><code>clockwork::<span class="tok-type">AutonSelector</span> selector(&amp;master); <span class="tok-com">// pass your pros::Controller</span></code></pre>
+      <p>A controller-driven autonomous selector. You register routines by name, the driver scrolls them with the D-pad before the match, the current pick shows on the controller and brain screens, and <code>run()</code> runs the choice in <code>autonomous()</code>. It uses only core PROS, so it works on any project, no liblvgl or LLEMU.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>add(name, routine)</code></td><td>Register a <code>void()</code> routine (a function or a lambda) under a display name</td></tr>
+        <tr><td><code>poll()</code></td><td>One iteration of the picker: reads the D-pad and redraws. Call it in a loop</td></tr>
+        <tr><td><code>run()</code></td><td>Run the selected routine. Call it from <code>autonomous()</code></td></tr>
+        <tr><td><code>next()</code> / <code>prev()</code></td><td>Move the selection, wrapping around</td></tr>
+        <tr><td><code>select(int)</code> / <code>select(name)</code></td><td>Choose a specific routine, for example a default</td></tr>
+        <tr><td><code>draw()</code></td><td>Push the current selection to both screens</td></tr>
+        <tr><td><code>index()</code> / <code>count()</code> / <code>name()</code></td><td>Read the current state</td></tr>
+      </table>
+      </div>
+      <pre><code><span class="tok-type">void</span> <span class="tok-fn">initialize</span>() {
+    selector.<span class="tok-fn">add</span>(<span class="tok-str">"Left rush"</span>,  left_rush);
+    selector.<span class="tok-fn">add</span>(<span class="tok-str">"Right safe"</span>, right_safe);
+    selector.<span class="tok-fn">add</span>(<span class="tok-str">"Do nothing"</span>, [] {});
+    selector.<span class="tok-fn">draw</span>();
+}
+
+<span class="tok-type">void</span> <span class="tok-fn">competition_initialize</span>() {
+    <span class="tok-key">while</span> (<span class="tok-key">true</span>) { selector.<span class="tok-fn">poll</span>(); pros::<span class="tok-fn">delay</span>(<span class="tok-num">20</span>); } <span class="tok-com">// driver picks here</span>
+}
+
+<span class="tok-type">void</span> <span class="tok-fn">autonomous</span>() { selector.<span class="tok-fn">run</span>(); }</code></pre>
+      <div class="note"><span class="lbl">Controls</span>RIGHT or DOWN on the D-pad moves to the next routine, LEFT or UP to the previous one. It uses new-press detection, so holding the D-pad won't run off the end of the list.</div>
+    </section>
+
+    <!-- SLEW -->
+    <section id="slew">
+      <h2>Reference</h2>
+      <h3>clockwork::SlewRateLimiter</h3>
+      <pre><code>clockwork::<span class="tok-type">SlewRateLimiter</span> slew(<span class="tok-num">2.5f</span>); <span class="tok-com">// most it can move per call</span></code></pre>
+      <p>Ramps a value toward a target by at most a fixed step each call, so the command eases in instead of jumping. Use it to smooth driver throttle, so a hard shove can't wheelie the robot or brown out the battery, or to bring a flywheel up to speed gently.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>calculate(float target)</code></td><td>Step the output toward <code>target</code> and return the new value. Call once per loop</td></tr>
+        <tr><td><code>reset(float value = 0)</code></td><td>Snap straight to a value with no ramp</td></tr>
+        <tr><td><code>value()</code></td><td>The current output, without stepping it</td></tr>
+      </table>
+      </div>
+      <p>The step is per call, so it depends on your loop rate. At a 10 ms loop, a step of about <code>2.5</code> ramps from 0 to full power (127) over roughly half a second. Keep the loop delay steady and the ramp stays consistent.</p>
+      <pre><code><span class="tok-type">void</span> <span class="tok-fn">opcontrol</span>() {
+    <span class="tok-key">while</span> (<span class="tok-key">true</span>) {
+        <span class="tok-type">int</span> y = master.<span class="tok-fn">get_analog</span>(pros::E_CONTROLLER_ANALOG_LEFT_Y);
+        left_mg.<span class="tok-fn">move</span>(slew.<span class="tok-fn">calculate</span>(y)); <span class="tok-com">// eased instead of instant</span>
+        pros::<span class="tok-fn">delay</span>(<span class="tok-num">10</span>);
+    }
+}</code></pre>
+    </section>
+
     <!-- EXAMPLES -->
     <section id="examples">
       <h2>More</h2>
@@ -461,6 +523,19 @@ clockwork::<span class="tok-type">PIDController</span> armPid(<span class="tok-n
     }
 }</code></pre>
       <p class="muted">The full set lives in <a href="https://github.com/AkshobyaRaoSWE/clockwork-lib/blob/main/EXAMPLES.md" target="_blank" rel="noopener">EXAMPLES.md</a>.</p>
+    </section>
+
+    <!-- TESTING -->
+    <section id="testing">
+      <h2>More</h2>
+      <h3>Testing</h3>
+      <p>The pure-logic classes (<code>PIDController</code> and <code>SlewRateLimiter</code>) have no PROS or hardware dependency, so they come with tests you can run on your own computer, no V5 brain needed.</p>
+      <pre><code>make test        <span class="tok-com"># or: bash test/run.sh</span></code></pre>
+      <p>That builds the tests with your system compiler and runs them. They check the proportional math, the output clamp, that a PID actually converges on a target, and that the slew limiter ramps and never overshoots.</p>
+      <pre><code>CLOCKWORK host tests
+15 checks, 0 failed
+OK</code></pre>
+      <p class="muted">The motion helpers and the selector talk to real hardware, so they are verified by building the template into a project and running it on a robot.</p>
     </section>
 
     <!-- BUILDING -->

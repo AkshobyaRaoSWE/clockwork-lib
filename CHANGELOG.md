@@ -3,6 +3,20 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-07-08
+
+### Added
+- `clockwork::AutonSelector`, a controller-driven autonomous selector. Register
+  routines by name, scroll them with the D-pad, see the pick on the controller
+  and brain screens, and `run()` the choice in `autonomous()`. Needs only core
+  PROS (no liblvgl / LLEMU).
+- `clockwork::SlewRateLimiter`, a small rate limiter that ramps a value toward a
+  target by a fixed step per call. Smooths driver throttle (no wheelies or
+  brownouts) or eases a flywheel up to speed.
+- Host-side test suite for the pure-logic classes (`PIDController`,
+  `SlewRateLimiter`). Runs on your computer with `make test` or `test/run.sh`,
+  no PROS install and no V5 brain required.
+
 ## [1.3.0] - 2026-07-07
 
 ### Added
@@ -57,6 +71,7 @@ All notable changes to this project are documented here. This project follows
   with a P heading hold.
 - PROS template packaging + `depot.json` for `pros c add-depot`.
 
+[1.4.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.4.0
 [1.3.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.3.0
 [1.2.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.2.0
 [1.1.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.1.0

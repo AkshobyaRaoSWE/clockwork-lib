@@ -1,6 +1,6 @@
 # CLOCKWORK
 
-![version](https://img.shields.io/badge/version-1.3.0-blue)
+![version](https://img.shields.io/badge/version-1.4.0-blue)
 ![platform](https://img.shields.io/badge/platform-VEX%20V5-red)
 ![PROS](https://img.shields.io/badge/PROS-kernel%20%5E4.2.1-orange)
 ![LemLib](https://img.shields.io/badge/depends-LemLib-green)
@@ -33,7 +33,10 @@ explains every tuning number in this library in plain words.
   - [`Motion`](#clockworkmotion)
   - [`Roller`](#clockworkroller)
   - [`PIDController`](#clockworkpidcontroller)
+  - [`AutonSelector`](#clockworkautonselector)
+  - [`SlewRateLimiter`](#clockworkslewratelimiter)
 - [Tuning cheat sheet](#tuning-cheat-sheet)
+- [Testing](#testing)
 - [Building and releasing](#building-and-releasing)
 
 ---
@@ -53,6 +56,8 @@ explains every tuning number in this library in plain words.
 | `Roller::stalled`           | Ask whether the intake is stalled |
 | **`Roller::antiJam`**       | **Clears intake jams on its own, without blocking your loop** |
 | **`PIDController`**         | **A reusable PID for anything LemLib doesn't drive: arm, lift, flywheel** |
+| **`AutonSelector`**         | **Pick an autonomous routine from the controller before the match** |
+| **`SlewRateLimiter`**       | **Ramp a value so a hard joystick shove can't wheelie or brown out** |
 
 Nothing here owns your hardware. `Motion` borrows a `lemlib::Chassis*`, `Roller`
 borrows a `pros::MotorGroup*`, and `PIDController` is standalone. You keep full
@@ -80,7 +85,7 @@ pros c apply clockwork
 
 ```bash
 # download clockwork@x.y.z.zip from the Releases page, then:
-pros c fetch clockwork@1.3.0.zip
+pros c fetch clockwork@1.4.0.zip
 pros c apply clockwork
 ```
 
@@ -346,6 +351,76 @@ void moveArmTo(float targetDeg) {
 To hold a position forever, like keeping an arm up under gravity, skip the
 `settled()` exit and just keep calling `update()` every loop.
 
+### `clockwork::AutonSelector`
+
+```cpp
+clockwork::AutonSelector selector(&master); // pass your pros::Controller
+```
+
+A controller-driven autonomous selector. You register routines by name, the
+driver scrolls them with the D-pad before the match, the current pick shows on
+the controller and brain screens, and `run()` runs the choice in `autonomous()`.
+It uses only core PROS, so it works on any project (no liblvgl or LLEMU).
+
+| Method | Description |
+|--------|-------------|
+| `add(name, routine)` | Register a `void()` routine (a function or a lambda) under a display name |
+| `poll()` | One iteration of the picker: reads the D-pad and redraws. Call it in a loop |
+| `run()` | Run the selected routine. Call it from `autonomous()` |
+| `next()` / `prev()` | Move the selection, wrapping around |
+| `select(int)` / `select(name)` | Choose a specific routine (for example a default) |
+| `draw()` | Push the current selection to both screens |
+| `index()` / `count()` / `name()` | Read the current state |
+
+```cpp
+void initialize() {
+    selector.add("Left rush",  left_rush);
+    selector.add("Right safe", right_safe);
+    selector.add("Do nothing", [] {});
+    selector.draw();
+}
+
+void competition_initialize() {
+    while (true) { selector.poll(); pros::delay(20); } // driver picks here
+}
+
+void autonomous() { selector.run(); }
+```
+
+RIGHT or DOWN on the D-pad moves to the next routine, LEFT or UP to the previous
+one. It uses new-press detection, so holding the D-pad won't run off the end.
+
+### `clockwork::SlewRateLimiter`
+
+```cpp
+clockwork::SlewRateLimiter slew(2.5f); // most it can move per call
+```
+
+Ramps a value toward a target by at most a fixed step each call, so the command
+eases in instead of jumping. Use it to smooth driver throttle (so a hard shove
+can't wheelie the robot or brown out the battery) or to bring a flywheel up to
+speed gently.
+
+| Method | Description |
+|--------|-------------|
+| `calculate(float target)` returns `float` | Step the output toward `target` and return the new value. Call once per loop |
+| `reset(float value = 0)` | Snap straight to a value with no ramp |
+| `value()` | The current output, without stepping it |
+
+The step is per call, so it depends on your loop rate. At a 10 ms loop, a step of
+about `2.5` ramps from 0 to full power (127) over roughly half a second. Keep the
+loop delay steady and the ramp stays consistent.
+
+```cpp
+void opcontrol() {
+    while (true) {
+        int y = master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y);
+        left_mg.move(slew.calculate(y)); // eased instead of instant
+        pros::delay(10);
+    }
+}
+```
+
 ---
 
 ## Tuning cheat sheet
@@ -365,6 +440,31 @@ To hold a position forever, like keeping an arm up under gravity, skip the
 
 All the gains here are starting points, not tuned for any specific robot. Tune on
 the field.
+
+---
+
+## Testing
+
+The pure-logic classes (`PIDController` and `SlewRateLimiter`) have no PROS or
+hardware dependency, so they come with tests you can run on your own computer, no
+V5 brain needed:
+
+```bash
+make test        # or: bash test/run.sh
+```
+
+That builds `test/test_clockwork.cpp` with your system compiler and runs it. It
+checks the proportional math, the output clamp, that a PID actually converges on
+a target, and that the slew limiter ramps and never overshoots. Expected output:
+
+```
+CLOCKWORK host tests
+15 checks, 0 failed
+OK
+```
+
+The motion helpers and the selector talk to real hardware, so they are verified
+by building the template into a project and running it on a robot.
 
 ---
 

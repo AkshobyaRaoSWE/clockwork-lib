@@ -155,3 +155,58 @@ void move_arm_to(float targetDeg) {
 
 To hold a position forever (e.g. keep an arm up under gravity), skip the
 `settled()` exit and just keep calling `update()` every loop.
+
+## 8. Autonomous selector
+
+Register your routines, let the driver scroll them with the controller D-pad
+before the match, and run the pick in `autonomous()`.
+
+```cpp
+#include "clockwork/clockwork.hpp"
+
+pros::Controller master(pros::E_CONTROLLER_MASTER);
+clockwork::AutonSelector selector(&master);
+
+void left_rush();   // your routines, defined elsewhere
+void right_safe();
+
+void initialize() {
+    selector.add("Left rush",  left_rush);
+    selector.add("Right safe", right_safe);
+    selector.add("Do nothing", [] {});
+    selector.select("Right safe"); // optional default
+    selector.draw();
+}
+
+void competition_initialize() {
+    // Wait for the match to start while the driver picks. RIGHT/DOWN and
+    // LEFT/UP on the D-pad move through the list.
+    while (true) {
+        selector.poll();
+        pros::delay(20);
+    }
+}
+
+void autonomous() {
+    selector.run(); // runs whatever was selected
+}
+```
+
+## 9. Slew-limited driver control
+
+Ramp the drive so a hard joystick shove can't wheelie or brown out the robot.
+
+```cpp
+clockwork::SlewRateLimiter leftSlew(2.5f);  // ~0 to 127 over about half a second
+clockwork::SlewRateLimiter rightSlew(2.5f);
+
+void opcontrol() {
+    while (true) {
+        int l = master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y);
+        int r = master.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_Y);
+        left_mg.move(leftSlew.calculate(l));
+        right_mg.move(rightSlew.calculate(r));
+        pros::delay(10); // steady loop keeps the ramp consistent
+    }
+}
+```
