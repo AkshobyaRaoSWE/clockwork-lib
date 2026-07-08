@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLOCKWORK — VEX V5 motion & control library</title>
+<meta name="description" content="A small PROS library of motion, intake, and control primitives for the VEX V5, built on LemLib. Includes a plain-English guide to PID gains.">
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --panel: #111113;
+    --panel-2: #161619;
+    --text: #e7e7ea;
+    --muted: #8b8b93;
+    --faint: #5c5c64;
+    --line: #202024;
+    --line-2: #2a2a30;
+    --accent: #82a9ff;
+    --accent-dim: #4b5f96;
+    --amber: #d9a24a;
+    --good: #7bcf9a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: var(--mono); }
+  ::selection { background: rgba(130,169,255,0.25); }
+
+  .layout { display: grid; grid-template-columns: 264px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; }
+
+  /* Sidebar */
+  aside {
+    position: sticky; top: 0; align-self: start; height: 100vh;
+    padding: 34px 22px 34px 28px; border-right: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .brand .mark { font-family: var(--mono); font-weight: 600; letter-spacing: 3px; font-size: 15px; }
+  .brand .ver { font-family: var(--mono); font-size: 11px; color: var(--amber); border: 1px solid var(--line-2); padding: 1px 6px; border-radius: 5px; }
+  .brand-sub { color: var(--faint); font-size: 12.5px; margin: 0 0 26px; }
+  nav { font-size: 14px; }
+  nav .group { color: var(--faint); text-transform: uppercase; letter-spacing: 1.2px; font-size: 11px; margin: 22px 0 8px; }
+  nav a { display: block; color: var(--muted); padding: 4px 0 4px 12px; border-left: 2px solid transparent; margin-left: -2px; }
+  nav a:hover { color: var(--text); text-decoration: none; }
+  nav a.active { color: var(--text); border-left-color: var(--accent); }
+  .side-links { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; }
+  .side-links a { color: var(--muted); display: block; padding: 3px 0; }
+
+  /* Main */
+  main { padding: 0 46px 140px; min-width: 0; }
+  section { padding-top: 56px; }
+  section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); margin: 0 0 6px; font-weight: 600; }
+  h3 { font-size: 26px; letter-spacing: -0.4px; margin: 2px 0 14px; font-weight: 600; }
+  h4 { font-size: 18px; margin: 30px 0 8px; font-weight: 600; }
+  h5 { font-size: 15px; margin: 22px 0 6px; font-weight: 600; color: var(--text); }
+  p { color: #cfcfd4; margin: 12px 0; }
+  .muted { color: var(--muted); }
+  strong { color: var(--text); font-weight: 600; }
+
+  /* Hero */
+  .hero { padding-top: 64px; }
+  .hero h1 { font-family: var(--mono); font-size: 40px; letter-spacing: 8px; margin: 0 0 6px; font-weight: 600; }
+  .hero .tag { font-size: 18px; color: var(--muted); margin: 0 0 22px; max-width: 46ch; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 26px; }
+  .chip { font-family: var(--mono); font-size: 12px; color: var(--muted); border: 1px solid var(--line-2); border-radius: 6px; padding: 3px 9px; }
+  .chip b { color: var(--text); font-weight: 600; }
+  .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+  .btn { display: inline-block; padding: 9px 16px; border-radius: 8px; font-size: 14px; border: 1px solid var(--line-2); color: var(--text); }
+  .btn:hover { background: var(--panel-2); text-decoration: none; border-color: #3a3a42; }
+  .btn.primary { background: var(--accent); color: #0a0a0b; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { background: #9bbcff; }
+
+  /* Code */
+  pre {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-size: 13.5px; line-height: 1.6; position: relative; margin: 16px 0;
+  }
+  pre code { color: #d7d7dd; }
+  :not(pre) > code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 6px; font-size: 0.86em; color: #e3e3e8;
+  }
+  .tok-key { color: #c99bff; }
+  .tok-type { color: #82a9ff; }
+  .tok-num { color: #d9a24a; }
+  .tok-str { color: #7bcf9a; }
+  .tok-com { color: var(--faint); font-style: italic; }
+  .tok-fn { color: #e7e7ea; }
+  .copy {
+    position: absolute; top: 8px; right: 8px; font-family: var(--sans);
+    font-size: 11px; color: var(--muted); background: var(--panel-2);
+    border: 1px solid var(--line-2); border-radius: 6px; padding: 3px 8px;
+    cursor: pointer; opacity: 0; transition: opacity .15s;
+  }
+  pre:hover .copy { opacity: 1; }
+  .copy:hover { color: var(--text); border-color: #3a3a42; }
+  .copy.done { color: var(--good); border-color: var(--accent-dim); }
+
+  /* Callouts */
+  .note {
+    border: 1px solid var(--line-2); border-left: 3px solid var(--accent);
+    background: var(--panel); border-radius: 8px; padding: 12px 16px; margin: 18px 0;
+    font-size: 14.5px;
+  }
+  .note.warn { border-left-color: var(--amber); }
+  .note .lbl { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); display: block; margin-bottom: 3px; }
+
+  /* Tables */
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--faint); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; }
+  td code { white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+
+  /* Gain cards */
+  .gaincard { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin: 16px 0; background: linear-gradient(180deg, var(--panel) 0%, rgba(17,17,19,0) 100%); }
+  .gaincard .k { font-family: var(--mono); font-size: 20px; font-weight: 600; }
+  .gaincard .role { color: var(--muted); font-size: 13px; }
+  .gaincard.p .k { color: var(--accent); }
+  .gaincard.d .k { color: var(--good); }
+  .gaincard.i .k { color: var(--amber); }
+
+  ol, ul { color: #cfcfd4; padding-left: 22px; }
+  li { margin: 6px 0; }
+
+  hr.div { border: none; border-top: 1px solid var(--line); margin: 0; }
+
+  footer { max-width: 1180px; margin: 0 auto; padding: 30px 46px 60px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13px; margin-left: 264px; }
+
+  .mobile-top { display: none; }
+
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { display: none; }
+    main { padding: 0 22px 100px; }
+    footer { margin-left: 0; padding: 30px 22px 60px; }
+    .mobile-top { display: block; position: sticky; top: 0; z-index: 5; background: rgba(10,10,11,0.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); padding: 12px 22px; }
+    .mobile-top .mark { font-family: var(--mono); letter-spacing: 3px; font-weight: 600; font-size: 14px; }
+    .hero { padding-top: 30px; }
+    .hero h1 { font-size: 30px; letter-spacing: 5px; }
+  }
+</style>
+</head>
+<body>
+<div class="mobile-top"><span class="mark">CLOCKWORK</span> <span class="muted" style="font-size:12px">· VEX V5 · v1.3.0</span></div>
+<div class="layout">
+  <aside>
+    <div class="brand"><span class="mark">CLOCKWORK</span><span class="ver">v1.3.0</span></div>
+    <p class="brand-sub">VEX V5 motion &amp; control, on LemLib</p>
+    <nav id="nav">
+      <div class="group">Start</div>
+      <a href="#overview">Overview</a>
+      <a href="#install">Install</a>
+      <a href="#quickstart">Quick start</a>
+      <div class="group">Learn</div>
+      <a href="#gains">Understanding gains</a>
+      <div class="group">Reference</div>
+      <a href="#motion">Motion</a>
+      <a href="#roller">Roller &amp; anti-jam</a>
+      <a href="#pid">PIDController</a>
+      <div class="group">More</div>
+      <a href="#examples">Examples</a>
+      <a href="#building">Building &amp; releasing</a>
+    </nav>
+    <div class="side-links">
+      <a href="https://github.com/AkshobyaRaoSWE/clockwork-lib" target="_blank" rel="noopener">GitHub repo &#8599;</a>
+      <a href="https://github.com/AkshobyaRaoSWE/clockwork-lib/releases" target="_blank" rel="noopener">Releases &#8599;</a>
+      <a href="https://lemlib.readthedocs.io/" target="_blank" rel="noopener">LemLib docs &#8599;</a>
+    </div>
+  </aside>
+
+  <main>
+    <!-- OVERVIEW -->
+    <section id="overview" class="hero">
+      <h1>CLOCKWORK</h1>
+      <p class="tag">A small, focused library of motion, intake, and control helpers for the VEX V5, sitting on top of LemLib.</p>
+      <div class="chips">
+        <span class="chip">platform <b>VEX V5</b></span>
+        <span class="chip">PROS kernel <b>^4.2.1</b></span>
+        <span class="chip">depends <b>LemLib</b></span>
+        <span class="chip">license <b>MIT</b></span>
+      </div>
+      <div class="cta">
+        <a class="btn primary" href="#install">Install</a>
+        <a class="btn" href="#gains">Learn PID gains</a>
+        <a class="btn" href="https://github.com/AkshobyaRaoSWE/clockwork-lib" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <p class="muted" style="margin-top:26px">Written for V5RC team 2360C. The idea is simple: install it once as a PROS template and call clean helpers from your autonomous and driver code, instead of copy-pasting the same motion code into every new project.</p>
+
+      <h4>What you get</h4>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Helper</th><th>What it does</th></tr>
+        <tr><td><code>Motion::driveFullThenSlow</code></td><td>Drive straight fast, then ease down to a slow speed for a gentle arrival</td></tr>
+        <tr><td><code>Motion::driveDistance</code></td><td>Drive a set number of inches, slowing near the target, holding heading</td></tr>
+        <tr><td><code>Motion::driveTimed</code></td><td>Push at a fixed power for a fixed time (ram / square up)</td></tr>
+        <tr><td><code>Motion::turnBy</code></td><td>Turn a relative number of degrees using the chassis's tuned turn PID</td></tr>
+        <tr><td><code>Motion::driveUntilStalled</code></td><td>Drive until the robot hits something, detected from odometry</td></tr>
+        <tr><td><code>Roller</code></td><td>Readable intake control: <code>in / out / stop / spin / pulse / hold</code></td></tr>
+        <tr><td><code>Roller::antiJam</code></td><td>Clears intake jams on its own, without blocking your loop</td></tr>
+        <tr><td><code>PIDController</code></td><td>A reusable PID for anything LemLib doesn't drive: arm, lift, flywheel</td></tr>
+      </table>
+      </div>
+      <p class="muted">Nothing here owns your hardware. <code>Motion</code> borrows a <code>lemlib::Chassis*</code>, <code>Roller</code> borrows a <code>pros::MotorGroup*</code>, and <code>PIDController</code> is standalone. You keep full control of your own devices.</p>
+    </section>
+
+    <!-- INSTALL -->
+    <section id="install">
+      <h2>Setup</h2>
+      <h3>Install</h3>
+      <p>You need a PROS project on kernel <code>^4.2.1</code> with LemLib already installed (<code>pros c install LemLib</code>).</p>
+      <h5>From the depot (recommended)</h5>
+      <pre><code>pros c add-depot clockwork https://raw.githubusercontent.com/AkshobyaRaoSWE/clockwork-lib/main/depot.json
+pros c apply clockwork</code></pre>
+      <h5>From a release zip</h5>
+      <pre><code>pros c fetch clockwork@1.3.0.zip
+pros c apply clockwork</code></pre>
+      <div class="note warn"><span class="lbl">Heads up</span><code>pros c apply &lt;path-to-zip&gt;</code> does not read a file path. It reads the argument as a <code>name@version</code> query. So always <code>fetch</code> the zip first, then <code>apply clockwork</code>.</div>
+      <p>To upgrade later, just run <code>pros c apply clockwork</code> again once the depot refreshes.</p>
+    </section>
+
+    <!-- QUICK START -->
+    <section id="quickstart">
+      <h2>Setup</h2>
+      <h3>Quick start</h3>
+      <p>Point the helpers at your own <code>chassis</code> and intake motor group, then call them from your routines.</p>
+      <pre><code><span class="tok-com">#include "clockwork/clockwork.hpp"</span>
+
+<span class="tok-com">// chassis and intake_motors are your own configured globals.</span>
+clockwork::<span class="tok-type">Motion</span> motion(&amp;chassis);
+clockwork::<span class="tok-type">Roller</span> intake(&amp;intake_motors);
+
+<span class="tok-type">void</span> <span class="tok-fn">autonomous</span>() {
+    chassis.<span class="tok-fn">setPose</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>);
+
+    intake.<span class="tok-fn">in</span>();                          <span class="tok-com">// start intaking</span>
+    motion.<span class="tok-fn">driveDistance</span>(<span class="tok-num">30</span>, <span class="tok-num">110</span>, <span class="tok-num">2000</span>);  <span class="tok-com">// 30 in, heading held</span>
+    motion.<span class="tok-fn">turnBy</span>(<span class="tok-num">90</span>);                    <span class="tok-com">// turn 90 deg clockwise</span>
+    motion.<span class="tok-fn">driveFullThenSlow</span>(<span class="tok-num">18</span>, <span class="tok-num">6</span>, <span class="tok-num">40</span>, <span class="tok-num">1500</span>); <span class="tok-com">// fast, then gentle</span>
+    intake.<span class="tok-fn">pulse</span>(<span class="tok-num">-127</span>, <span class="tok-num">300</span>);              <span class="tok-com">// eject for 300 ms</span>
+
+    <span class="tok-key">if</span> (motion.<span class="tok-fn">driveUntilStalled</span>(<span class="tok-num">70</span>, <span class="tok-num">1200</span>)) <span class="tok-com">// ram the wall</span>
+        chassis.<span class="tok-fn">setPose</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>);           <span class="tok-com">// reset odom if we hit it</span>
+}
+
+<span class="tok-type">void</span> <span class="tok-fn">opcontrol</span>() {
+    <span class="tok-key">while</span> (<span class="tok-key">true</span>) {
+        intake.<span class="tok-fn">in</span>();       <span class="tok-com">// drive the intake</span>
+        intake.<span class="tok-fn">antiJam</span>();  <span class="tok-com">// clears jams by itself, never blocks</span>
+        pros::<span class="tok-fn">delay</span>(<span class="tok-num">20</span>);
+    }
+}</code></pre>
+      <p class="muted">More complete routines are on the <a href="https://github.com/AkshobyaRaoSWE/clockwork-lib/blob/main/EXAMPLES.md" target="_blank" rel="noopener">EXAMPLES page</a>.</p>
+    </section>
+
+    <!-- GAINS -->
+    <section id="gains">
+      <h2>Learn</h2>
+      <h3>Understanding gains (kP, kI, kD)</h3>
+      <p>Every "Kp" in this library is really one question: <strong>how hard should the robot push to fix a mistake?</strong> You do not need any control-theory background for this. Read it once and the rest of the library makes sense.</p>
+
+      <h4>The one idea behind all of it</h4>
+      <p>A controller is a loop that runs many times a second and asks one thing:</p>
+      <div class="note"><span class="lbl">The question</span>How far am I from where I want to be?</div>
+      <p>That gap is the <strong>error</strong>. For a drive it might be "12 inches short." For an arm it might be "30 degrees too low." The controller turns that error into a motor power, waits a few milliseconds, checks again, and repeats until the error is basically zero. The gains decide <em>how</em> it turns error into power.</p>
+
+      <div class="gaincard p">
+        <div class="k">kP <span class="role">proportional &middot; the main dial</span></div>
+        <p><strong>Power = kP &times; error.</strong> The bigger the mistake, the harder it pushes, and it eases off on its own as it gets close. Picture a spring pulling the robot to the target, and kP is how stiff that spring is.</p>
+        <ul>
+          <li><strong>Too low:</strong> weak spring. It creeps in slowly, or stops short (an arm sags below where you wanted it).</li>
+          <li><strong>Too high:</strong> violent spring. It races in, overshoots, then overshoots the other way. It shakes.</li>
+          <li><strong>Just right:</strong> reaches the target quickly with only a tiny overshoot.</li>
+        </ul>
+        <p class="muted">This is the one you tune first, and it does about 90% of the work. In this library, <code>headingKp</code> (default 2.0) and <code>driveKp</code> (default 8.0) are both pure kP dials.</p>
+      </div>
+
+      <div class="gaincard d">
+        <div class="k">kD <span class="role">derivative &middot; the brake</span></div>
+        <p>A stiff kP overshoots because it keeps pushing hard right up until it arrives, so momentum carries it past. kD is the shock absorber. It watches <strong>how fast the error is shrinking</strong> and pushes back against fast approaches.</p>
+        <ul>
+          <li>Adds a braking force that grows the faster you are closing in.</li>
+          <li>Lets you run a higher kP (fast) without the overshoot (sloppy).</li>
+          <li><strong>Too high:</strong> it fights every little sensor wiggle and the mechanism buzzes.</li>
+        </ul>
+        <p class="muted">Tune kD second, after kP, to kill the shake that kP left behind.</p>
+      </div>
+
+      <div class="gaincard i">
+        <div class="k">kI <span class="role">integral &middot; the closer, use sparingly</span></div>
+        <p>Sometimes it settles near the target but never quite reaches it, a small steady offset. The classic case is an arm held up against gravity, where kP's push at a tiny error is not quite enough to hold it level. kI fixes that last sliver by <strong>adding up</strong> the leftover error over time until the push is finally strong enough.</p>
+        <ul>
+          <li>Only cures a small, persistent offset. It does nothing for speed or overshoot.</li>
+          <li>Keep it tiny, often 10x to 100x smaller than kP.</li>
+          <li><strong>Too high:</strong> it "winds up" and causes slow, lazy oscillation.</li>
+          <li>Plenty of mechanisms are perfect with kI = 0. Start there.</li>
+        </ul>
+        <p class="muted"><code>PIDController</code> guards against wind-up for you: it caps the sum (<code>integralCap</code>) and clears it whenever the error crosses zero, so a big move can't leave a huge push waiting to overshoot.</p>
+      </div>
+
+      <h4>The tuning recipe</h4>
+      <ol>
+        <li>Set kI = 0 and kD = 0.</li>
+        <li>Raise <strong>kP</strong> until it reaches the target quickly and overshoots just a little. If it shakes hard, you went too far, back off.</li>
+        <li>Raise <strong>kD</strong> until that overshoot and shake smooth out. If it starts buzzing, back off.</li>
+        <li>Only if it still stops slightly short, add a <strong>tiny kI</strong> (start around 1/50th of kP) until it closes the gap. Otherwise leave kI = 0.</li>
+      </ol>
+      <div class="note"><span class="lbl">Golden rule</span>P, then D, then maybe I. Change one gain at a time and watch what it does before you touch the next.</div>
+
+      <h4>Symptom, then which gain</h4>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>What you see</th><th>Likely cause</th><th>Do this</th></tr>
+        <tr><td>Reaches target too slowly, or stops short</td><td>kP too low</td><td>Raise kP</td></tr>
+        <tr><td>Overshoots then oscillates</td><td>kP too high</td><td>Lower kP, or add kD</td></tr>
+        <tr><td>Fast approach but shakes at the end</td><td>Needs damping</td><td>Add or raise kD</td></tr>
+        <tr><td>Buzzes or jitters constantly</td><td>kD too high</td><td>Lower kD</td></tr>
+        <tr><td>Settles just short of target forever</td><td>Steady offset</td><td>Add a tiny kI</td></tr>
+        <tr><td>Slow lazy wobble that won't die</td><td>kI wind-up</td><td>Lower kI, or set it to 0</td></tr>
+      </table>
+      </div>
+
+      <h4>One thing that matters: loop timing</h4>
+      <p>A controller assumes it runs at a steady rhythm. Always put a fixed delay in your loop (<code>pros::delay(10)</code> is typical) and keep it the same. If you change the loop delay, your tuned gains change meaning and you have to re-tune. That is why every example here ends its loop with a <code>pros::delay</code>.</p>
+    </section>
+
+    <!-- MOTION -->
+    <section id="motion">
+      <h2>Reference</h2>
+      <h3>clockwork::Motion</h3>
+      <pre><code>clockwork::<span class="tok-type">Motion</span> motion(&amp;chassis);</code></pre>
+      <p>Every drive helper holds the heading it started at with a P controller (<code>headingKp</code>) and bypasses the driver curve. The distance-based ones measure from the pose at the moment you call them, so give the chassis a valid pose first with <code>setPose</code>. Pass negative speeds or distances to run in reverse.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Signature</th></tr>
+        <tr><td><code>driveFullThenSlow</code></td><td><code>(float fullDist, float slowDist, int slowSpeed, int timeoutMs, int fullSpeed = 127, float headingKp = 2.0f)</code></td></tr>
+        <tr><td><code>driveDistance</code></td><td><code>(float dist, int maxSpeed = 127, int timeoutMs = 3000, float headingKp = 2.0f, float settleRange = 1.0f, float driveKp = 8.0f)</code></td></tr>
+        <tr><td><code>driveTimed</code></td><td><code>(int ms, int speed, float headingKp = 2.0f)</code></td></tr>
+        <tr><td><code>turnBy</code></td><td><code>(float degrees, int timeoutMs = 1500, int maxSpeed = 127)</code></td></tr>
+        <tr><td><code>driveUntilStalled</code></td><td><code>(int power, int timeoutMs = 3000, float headingKp = 2.0f) &rarr; bool</code></td></tr>
+      </table>
+      </div>
+      <ul>
+        <li><strong>driveFullThenSlow</strong>: full speed for <code>fullDist</code> inches, then <code>slowSpeed</code> for the next <code>slowDist</code>. Fast approach, soft arrival.</li>
+        <li><strong>driveDistance</strong>: drive <code>dist</code> inches, easing off near the target, settling within <code>settleRange</code> or timing out. <code>driveKp</code> sets how hard it pushes per inch remaining (raise for snappier, lower if it overshoots).</li>
+        <li><strong>driveTimed</strong>: apply <code>speed</code> for <code>ms</code> milliseconds, then stop.</li>
+        <li><strong>turnBy</strong>: turn <code>degrees</code> relative to your current heading (positive is clockwise) using the chassis's own turn PID. Blocks until it settles.</li>
+        <li><strong>driveUntilStalled</strong>: drive at <code>power</code> until the robot stops moving (a wall, an obstacle) or times out. Returns true if it actually stalled. Great for squaring on a wall before an odom reset.</li>
+      </ul>
+      <div class="note"><span class="lbl">Heading is capped</span>The heading correction is internally clamped, so a hard bump can't produce a giant turn command that steals power from the throttle. Forward motion always keeps priority.</div>
+    </section>
+
+    <!-- ROLLER -->
+    <section id="roller">
+      <h2>Reference</h2>
+      <h3>clockwork::Roller</h3>
+      <pre><code>clockwork::<span class="tok-type">Roller</span> intake(&amp;intake_motors, <span class="tok-num">127</span>); <span class="tok-com">// second arg = default power</span></code></pre>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>in()</code></td><td>spin inward at the default power</td></tr>
+        <tr><td><code>out()</code></td><td>spin outward at the default power</td></tr>
+        <tr><td><code>stop()</code></td><td>command 0</td></tr>
+        <tr><td><code>spin(int power)</code></td><td>explicit signed power, -127 to 127</td></tr>
+        <tr><td><code>pulse(int power, int ms)</code></td><td>spin for <code>ms</code>, then stop (this one blocks)</td></tr>
+        <tr><td><code>hold()</code></td><td>set HOLD brake mode and brake in place</td></tr>
+        <tr><td><code>stalled(double vel = 5.0)</code></td><td>true if velocity is under <code>vel</code> RPM</td></tr>
+        <tr><td><code>antiJam(...)</code></td><td>non-blocking auto-reverse on a jam</td></tr>
+      </table>
+      </div>
+
+      <h4>How anti-jam works</h4>
+      <p><code>antiJam(int reversePower = 127, int reverseMs = 200, int jamHoldMs = 150, double velThreshold = 5.0)</code></p>
+      <p>Call it once per loop, right after you command the intake. It is a little state machine that reads the last power you sent, so it always knows which way you meant to run and it never blocks.</p>
+      <ul>
+        <li><strong>Idle</strong> (you commanded 0): it does nothing and returns false.</li>
+        <li><strong>Watching</strong>: you commanded movement, so it checks the real velocity. Moving fine resets the stall timer. Below <code>velThreshold</code> starts the timer.</li>
+        <li><strong>Jam confirmed</strong>: once it has been stalled longer than <code>jamHoldMs</code>, it drives the group the opposite way at <code>reversePower</code> for a <code>reverseMs</code> window.</li>
+        <li><strong>Clearing</strong>: later calls just let the burst run, then it resumes your original command on its own and returns to watching.</li>
+      </ul>
+      <pre><code><span class="tok-key">while</span> (<span class="tok-key">true</span>) {
+    intake.<span class="tok-fn">in</span>();
+    intake.<span class="tok-fn">antiJam</span>();      <span class="tok-com">// reverses a 200 ms burst on a jam, then resumes</span>
+    pros::<span class="tok-fn">delay</span>(<span class="tok-num">20</span>);
+}</code></pre>
+      <div class="note"><span class="lbl">Note</span>It works off motor velocity, not current, so a motor that free-spins without intaking reads as "moving" and won't false-trigger. The flip side: a slipping jam where the motor still spins won't be caught. Keep calling it every loop, or a burst in progress never gets cancelled.</div>
+    </section>
+
+    <!-- PID -->
+    <section id="pid">
+      <h2>Reference</h2>
+      <h3>clockwork::PIDController</h3>
+      <pre><code>clockwork::<span class="tok-type">PIDController</span> pid(kP, kI, kD, integralCap = <span class="tok-num">0</span>, outputCap = <span class="tok-num">0</span>);</code></pre>
+      <p>A standalone PID for anything LemLib doesn't drive: an arm, a lift, a flywheel, a wall-align. If the three numbers are new to you, read <a href="#gains">Understanding gains</a> first.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>update(float error) &rarr; float</code></td><td>Call every loop with <code>target - measured</code>. Returns a motor power, clamped to <code>outputCap</code> if you set one.</td></tr>
+        <tr><td><code>reset()</code></td><td>Forget history (the integral sum and last error). Call it at the start of a new move.</td></tr>
+        <tr><td><code>setGains(kP, kI, kD)</code></td><td>Swap gains at runtime, for example loaded versus empty.</td></tr>
+        <tr><td><code>settled(tolerance, stillness = 1.0f)</code></td><td>True when the error is within <code>tolerance</code> and barely changing, so it has actually arrived rather than flying through.</td></tr>
+      </table>
+      </div>
+      <p>Two constructor extras: <code>integralCap</code> limits how much the integral can build up (anti-windup; 0 disables it), and <code>outputCap</code> limits the returned power. Pass <strong>127</strong> for <code>outputCap</code> so <code>update()</code> never hands a motor an out-of-range command.</p>
+      <pre><code><span class="tok-com">// arm: kP=0.9, kI=0, kD=4, integral cap 50, output clamped to motor range</span>
+clockwork::<span class="tok-type">PIDController</span> armPid(<span class="tok-num">0.9f</span>, <span class="tok-num">0.0f</span>, <span class="tok-num">4.0f</span>, <span class="tok-num">50.0f</span>, <span class="tok-num">127.0f</span>);
+
+<span class="tok-type">void</span> <span class="tok-fn">moveArmTo</span>(<span class="tok-type">float</span> targetDeg) {
+    armPid.<span class="tok-fn">reset</span>();
+    <span class="tok-key">while</span> (!armPid.<span class="tok-fn">settled</span>(<span class="tok-num">2.0f</span>)) {
+        <span class="tok-type">float</span> measured = armSensor.<span class="tok-fn">get_position</span>() / <span class="tok-num">100.0f</span>;
+        arm.<span class="tok-fn">move</span>(armPid.<span class="tok-fn">update</span>(targetDeg - measured));
+        pros::<span class="tok-fn">delay</span>(<span class="tok-num">10</span>); <span class="tok-com">// steady loop timing, see the gains guide</span>
+    }
+    arm.<span class="tok-fn">brake</span>();
+}</code></pre>
+      <p class="muted">To hold a position forever, like keeping an arm up under gravity, skip the <code>settled()</code> exit and just keep calling <code>update()</code> every loop.</p>
+    </section>
+
+    <!-- EXAMPLES -->
+    <section id="examples">
+      <h2>More</h2>
+      <h3>Examples</h3>
+      <h5>Straight rush and score</h5>
+      <pre><code><span class="tok-type">void</span> <span class="tok-fn">rushAndScore</span>() {
+    clockwork::<span class="tok-type">Motion</span> motion(&amp;chassis);
+    chassis.<span class="tok-fn">setPose</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>);
+    intake.<span class="tok-fn">in</span>();
+    motion.<span class="tok-fn">driveFullThenSlow</span>(<span class="tok-num">36</span>, <span class="tok-num">8</span>, <span class="tok-num">45</span>, <span class="tok-num">2500</span>); <span class="tok-com">// 36 in full, 8 in easing to 45</span>
+    intake.<span class="tok-fn">pulse</span>(<span class="tok-num">-127</span>, <span class="tok-num">400</span>);                   <span class="tok-com">// eject</span>
+}</code></pre>
+      <h5>Wall-align and reset odometry</h5>
+      <pre><code><span class="tok-type">void</span> <span class="tok-fn">alignToWall</span>() {
+    clockwork::<span class="tok-type">Motion</span> motion(&amp;chassis);
+    <span class="tok-key">if</span> (motion.<span class="tok-fn">driveUntilStalled</span>(<span class="tok-num">70</span>, <span class="tok-num">1500</span>)) {
+        lemlib::<span class="tok-type">Pose</span> p = chassis.<span class="tok-fn">getPose</span>();
+        chassis.<span class="tok-fn">setPose</span>(p.x, <span class="tok-num">0</span>, <span class="tok-num">0</span>); <span class="tok-com">// squared up, re-zero the known axis</span>
+    }
+}</code></pre>
+      <h5>Box pattern with relative turns</h5>
+      <pre><code><span class="tok-type">void</span> <span class="tok-fn">box</span>() {
+    clockwork::<span class="tok-type">Motion</span> motion(&amp;chassis);
+    chassis.<span class="tok-fn">setPose</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>);
+    <span class="tok-key">for</span> (<span class="tok-type">int</span> i = <span class="tok-num">0</span>; i &lt; <span class="tok-num">4</span>; i++) {
+        motion.<span class="tok-fn">driveDistance</span>(<span class="tok-num">24</span>, <span class="tok-num">110</span>, <span class="tok-num">2000</span>);
+        motion.<span class="tok-fn">turnBy</span>(<span class="tok-num">90</span>);
+    }
+}</code></pre>
+      <p class="muted">The full set lives in <a href="https://github.com/AkshobyaRaoSWE/clockwork-lib/blob/main/EXAMPLES.md" target="_blank" rel="noopener">EXAMPLES.md</a>.</p>
+    </section>
+
+    <!-- BUILDING -->
+    <section id="building">
+      <h2>More</h2>
+      <h3>Building &amp; releasing</h3>
+      <p>You need the PROS toolchain (<code>pros</code> and <code>arm-none-eabi</code>) on your PATH.</p>
+      <pre><code>pros make            <span class="tok-com"># build the project + bin/clockwork.a</span>
+pros make template   <span class="tok-com"># package clockwork@&lt;version&gt;.zip</span></code></pre>
+      <p>To cut a release: bump <code>VERSION</code> in the Makefile, run <code>pros make template</code>, attach the zip to a GitHub release, and add an entry to <code>depot.json</code>. The template ships only the public headers and the compiled archive.</p>
+      <p class="muted">Versioning follows semver. See the <a href="https://github.com/AkshobyaRaoSWE/clockwork-lib/blob/main/CHANGELOG.md" target="_blank" rel="noopener">changelog</a>.</p>
+    </section>
+  </main>
+</div>
+<footer>
+  CLOCKWORK &middot; MIT licensed &middot; built on <a href="https://lemlib.readthedocs.io/" target="_blank" rel="noopener">LemLib</a> &middot; <a href="https://github.com/AkshobyaRaoSWE/clockwork-lib" target="_blank" rel="noopener">source on GitHub</a>
+</footer>
+<script>
+  // Copy buttons on code blocks
+  document.querySelectorAll('pre').forEach(function (pre) {
+    var btn = document.createElement('button');
+    btn.className = 'copy';
+    btn.textContent = 'copy';
+    btn.addEventListener('click', function () {
+      var code = pre.querySelector('code');
+      navigator.clipboard.writeText(code.innerText).then(function () {
+        btn.textContent = 'copied';
+        btn.classList.add('done');
+        setTimeout(function () { btn.textContent = 'copy'; btn.classList.remove('done'); }, 1400);
+      });
+    });
+    pre.appendChild(btn);
+  });
+
+  // Active section highlighting in the sidebar
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (l) { l.classList.remove('active'); });
+        var active = byId[e.target.id];
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+  document.querySelectorAll('main section').forEach(function (s) { observer.observe(s); });
+</script>
+</body>
+</html>
