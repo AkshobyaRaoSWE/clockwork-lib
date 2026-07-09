@@ -3,6 +3,23 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-07-09
+
+### Added
+- `clockwork::Pneumatics`, a wrapper for a pneumatic piston (an ADI digital-out
+  solenoid). Tracks its own state so you get `extend()`, `retract()`, `set()`,
+  `toggle()`, and `extended()` instead of loose `set_value` calls.
+- `clockwork::Toggle`, a latch that flips a boolean on the released-to-pressed
+  edge of a button. Handles the edge detection itself, so one press toggles once.
+  Pairs with `Pneumatics` for one-button clamps and speed modes.
+- `clockwork::joystickCurve(input, curve, deadband)`, exponential joystick
+  shaping with a deadband, for finer low-speed driver control.
+- Host tests extended to cover `Toggle` and `joystickCurve` (29 checks total).
+
+### Changed
+- Rewrote the header comments across the whole library in a plainer, more
+  human voice. No API or behavior change.
+
 ## [1.4.0] - 2026-07-08
 
 ### Added
@@ -71,6 +88,7 @@ All notable changes to this project are documented here. This project follows
   with a P heading hold.
 - PROS template packaging + `depot.json` for `pros c add-depot`.
 
+[1.5.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.5.0
 [1.4.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.4.0
 [1.3.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.3.0
 [1.2.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.2.0

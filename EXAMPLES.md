@@ -210,3 +210,39 @@ void opcontrol() {
     }
 }
 ```
+
+## 10. One-button pneumatic clamp
+
+`Toggle` latches the button so one press clamps and the next press releases, and
+`Pneumatics` drives the piston and remembers its state.
+
+```cpp
+clockwork::Pneumatics clamp('A'); // ADI port A
+clockwork::Toggle clampToggle;
+
+void opcontrol() {
+    while (true) {
+        bool held = master.get_digital(pros::E_CONTROLLER_DIGITAL_L1);
+        clamp.set(clampToggle.update(held)); // press once to clamp, again to release
+        pros::delay(10);
+    }
+}
+```
+
+## 11. Curved (expo) driver control
+
+Shape the joystick so small movements are gentle and full pushes still hit full
+power. Great for precise lineups without giving up top speed.
+
+```cpp
+void opcontrol() {
+    while (true) {
+        int y = master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y);
+        int x = master.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X);
+        // curve 2.0 for finesse near center, deadband 5 to kill stick drift
+        left_mg.move(clockwork::joystickCurve(y + x, 2.0f, 5));
+        right_mg.move(clockwork::joystickCurve(y - x, 2.0f, 5));
+        pros::delay(10);
+    }
+}
+```

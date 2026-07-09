@@ -1,6 +1,6 @@
 # CLOCKWORK
 
-![version](https://img.shields.io/badge/version-1.4.0-blue)
+![version](https://img.shields.io/badge/version-1.5.0-blue)
 ![platform](https://img.shields.io/badge/platform-VEX%20V5-red)
 ![PROS](https://img.shields.io/badge/PROS-kernel%20%5E4.2.1-orange)
 ![LemLib](https://img.shields.io/badge/depends-LemLib-green)
@@ -35,6 +35,9 @@ explains every tuning number in this library in plain words.
   - [`PIDController`](#clockworkpidcontroller)
   - [`AutonSelector`](#clockworkautonselector)
   - [`SlewRateLimiter`](#clockworkslewratelimiter)
+  - [`Pneumatics`](#clockworkpneumatics)
+  - [`Toggle`](#clockworktoggle)
+  - [`joystickCurve`](#clockworkjoystickcurve)
 - [Tuning cheat sheet](#tuning-cheat-sheet)
 - [Testing](#testing)
 - [Building and releasing](#building-and-releasing)
@@ -58,6 +61,9 @@ explains every tuning number in this library in plain words.
 | **`PIDController`**         | **A reusable PID for anything LemLib doesn't drive: arm, lift, flywheel** |
 | **`AutonSelector`**         | **Pick an autonomous routine from the controller before the match** |
 | **`SlewRateLimiter`**       | **Ramp a value so a hard joystick shove can't wheelie or brown out** |
+| **`Pneumatics`**            | **A clamp/wings piston with `extend` / `retract` / `toggle` and state** |
+| **`Toggle`**                | **Latch a boolean on a single button press (one-button clamps, modes)** |
+| **`joystickCurve`**         | **Shape joystick input for fine low-speed control, still full at the ends** |
 
 Nothing here owns your hardware. `Motion` borrows a `lemlib::Chassis*`, `Roller`
 borrows a `pros::MotorGroup*`, and `PIDController` is standalone. You keep full
@@ -85,7 +91,7 @@ pros c apply clockwork
 
 ```bash
 # download clockwork@x.y.z.zip from the Releases page, then:
-pros c fetch clockwork@1.4.0.zip
+pros c fetch clockwork@1.5.0.zip
 pros c apply clockwork
 ```
 
@@ -419,6 +425,69 @@ void opcontrol() {
         pros::delay(10);
     }
 }
+```
+
+### `clockwork::Pneumatics`
+
+```cpp
+clockwork::Pneumatics clamp('A'); // ADI port A (or a number 1-8)
+```
+
+Wraps a single pneumatic piston (an ADI digital-out solenoid) for a clamp,
+wings, or a tilt. It remembers whether it is extended, so you can toggle it and
+read its state instead of tracking a loose bool.
+
+| Method | Description |
+|--------|-------------|
+| `extend()` / `retract()` | push the piston out / pull it in |
+| `set(bool out)` | extend when `true`, retract when `false` |
+| `toggle()` | flip to whichever it isn't right now |
+| `extended()` | `true` if it is currently out |
+
+Pass `startExtended` to the constructor if the piston should begin pushed out.
+
+### `clockwork::Toggle`
+
+```cpp
+clockwork::Toggle clampToggle;
+```
+
+A latch that flips a boolean on the released-to-pressed edge of a button. Feed it
+the button state every loop and it handles the edge detection, so a single press
+toggles once instead of flickering while you hold it. This is what makes a
+one-button clamp or speed mode work.
+
+| Method | Description |
+|--------|-------------|
+| `update(bool pressed)` returns `bool` | Call every loop with the button state. Flips on the press, returns the latched value |
+| `state()` | The latched value, without changing it |
+| `set(bool)` | Force the latch to a value (for example reset to open at match start) |
+
+```cpp
+clamp.set(clampToggle.update(master.get_digital(pros::E_CONTROLLER_DIGITAL_L1)));
+```
+
+### `clockwork::joystickCurve`
+
+```cpp
+float shaped = clockwork::joystickCurve(input, 2.0f, 5);
+```
+
+Shapes a raw joystick reading so the middle of the stick is gentler than the
+ends. You get fine control for small nudges and still hit full power at the
+extremes, which is the trick that makes a drive feel precise instead of twitchy.
+
+| Argument | Meaning |
+|----------|---------|
+| `input` | raw stick value, -127 to 127 |
+| `curve` | how much to bend it. `1.0` is linear (no shaping); higher (2 or 3) gives more finesse near the center. Default `2.0` |
+| `deadband` | anything this small either way reads as `0`, killing stick drift. Default `5` |
+
+It returns the shaped value, still in the -127 to 127 range, ready to hand to a
+motor.
+
+```cpp
+left_mg.move(clockwork::joystickCurve(y + x, 2.0f, 5));
 ```
 
 ---

@@ -156,10 +156,10 @@
 </style>
 </head>
 <body>
-<div class="mobile-top"><span class="mark">CLOCKWORK</span> <span class="muted" style="font-size:12px">· VEX V5 · v1.4.0</span></div>
+<div class="mobile-top"><span class="mark">CLOCKWORK</span> <span class="muted" style="font-size:12px">· VEX V5 · v1.5.0</span></div>
 <div class="layout">
   <aside>
-    <div class="brand"><span class="mark">CLOCKWORK</span><span class="ver">v1.4.0</span></div>
+    <div class="brand"><span class="mark">CLOCKWORK</span><span class="ver">v1.5.0</span></div>
     <p class="brand-sub">VEX V5 motion &amp; control, on LemLib</p>
     <nav id="nav">
       <div class="group">Start</div>
@@ -174,6 +174,9 @@
       <a href="#pid">PIDController</a>
       <a href="#selector">Auton selector</a>
       <a href="#slew">Slew limiter</a>
+      <a href="#pneumatics">Pneumatics</a>
+      <a href="#toggle">Toggle</a>
+      <a href="#curve">Joystick curve</a>
       <div class="group">More</div>
       <a href="#examples">Examples</a>
       <a href="#testing">Testing</a>
@@ -218,6 +221,9 @@
         <tr><td><code>PIDController</code></td><td>A reusable PID for anything LemLib doesn't drive: arm, lift, flywheel</td></tr>
         <tr><td><code>AutonSelector</code></td><td>Pick an autonomous routine from the controller before the match</td></tr>
         <tr><td><code>SlewRateLimiter</code></td><td>Ramp a value so a hard joystick shove can't wheelie or brown out</td></tr>
+        <tr><td><code>Pneumatics</code></td><td>A clamp/wings piston with extend / retract / toggle and state</td></tr>
+        <tr><td><code>Toggle</code></td><td>Latch a boolean on a single button press (one-button clamps, modes)</td></tr>
+        <tr><td><code>joystickCurve</code></td><td>Shape joystick input for fine low-speed control, still full at the ends</td></tr>
       </table>
       </div>
       <p class="muted">Nothing here owns your hardware. <code>Motion</code> borrows a <code>lemlib::Chassis*</code>, <code>Roller</code> borrows a <code>pros::MotorGroup*</code>, and <code>PIDController</code> is standalone. You keep full control of your own devices.</p>
@@ -232,7 +238,7 @@
       <pre><code>pros c add-depot clockwork https://raw.githubusercontent.com/AkshobyaRaoSWE/clockwork-lib/main/depot.json
 pros c apply clockwork</code></pre>
       <h5>From a release zip</h5>
-      <pre><code>pros c fetch clockwork@1.4.0.zip
+      <pre><code>pros c fetch clockwork@1.5.0.zip
 pros c apply clockwork</code></pre>
       <div class="note warn"><span class="lbl">Heads up</span><code>pros c apply &lt;path-to-zip&gt;</code> does not read a file path. It reads the argument as a <code>name@version</code> query. So always <code>fetch</code> the zip first, then <code>apply clockwork</code>.</div>
       <p>To upgrade later, just run <code>pros c apply clockwork</code> again once the depot refreshes.</p>
@@ -491,6 +497,58 @@ clockwork::<span class="tok-type">PIDController</span> armPid(<span class="tok-n
         pros::<span class="tok-fn">delay</span>(<span class="tok-num">10</span>);
     }
 }</code></pre>
+    </section>
+
+    <!-- PNEUMATICS -->
+    <section id="pneumatics">
+      <h2>Reference</h2>
+      <h3>clockwork::Pneumatics</h3>
+      <pre><code>clockwork::<span class="tok-type">Pneumatics</span> clamp(<span class="tok-str">'A'</span>); <span class="tok-com">// ADI port A (or a number 1-8)</span></code></pre>
+      <p>Wraps a single pneumatic piston (an ADI digital-out solenoid) for a clamp, wings, or a tilt. It remembers whether it's extended, so you can toggle it and read its state instead of tracking a loose bool.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>extend()</code> / <code>retract()</code></td><td>push the piston out / pull it in</td></tr>
+        <tr><td><code>set(bool out)</code></td><td>extend when <code>true</code>, retract when <code>false</code></td></tr>
+        <tr><td><code>toggle()</code></td><td>flip to whichever it isn't right now</td></tr>
+        <tr><td><code>extended()</code></td><td><code>true</code> if it's currently out</td></tr>
+      </table>
+      </div>
+      <p class="muted">Pass <code>startExtended</code> to the constructor if the piston should begin pushed out.</p>
+    </section>
+
+    <!-- TOGGLE -->
+    <section id="toggle">
+      <h2>Reference</h2>
+      <h3>clockwork::Toggle</h3>
+      <pre><code>clockwork::<span class="tok-type">Toggle</span> clampToggle;</code></pre>
+      <p>A latch that flips a boolean on the released-to-pressed edge of a button. Feed it the button state every loop and it handles the edge detection, so a single press toggles once instead of flickering while you hold it. This is what makes a one-button clamp or speed mode work.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>update(bool pressed)</code></td><td>Call every loop with the button state. Flips on the press, returns the latched value</td></tr>
+        <tr><td><code>state()</code></td><td>The latched value, without changing it</td></tr>
+        <tr><td><code>set(bool)</code></td><td>Force the latch to a value, for example reset to open at match start</td></tr>
+      </table>
+      </div>
+      <pre><code>clamp.<span class="tok-fn">set</span>(clampToggle.<span class="tok-fn">update</span>(master.<span class="tok-fn">get_digital</span>(pros::E_CONTROLLER_DIGITAL_L1)));</code></pre>
+    </section>
+
+    <!-- CURVE -->
+    <section id="curve">
+      <h2>Reference</h2>
+      <h3>clockwork::joystickCurve</h3>
+      <pre><code><span class="tok-type">float</span> shaped = clockwork::<span class="tok-fn">joystickCurve</span>(input, <span class="tok-num">2.0f</span>, <span class="tok-num">5</span>);</code></pre>
+      <p>Shapes a raw joystick reading so the middle of the stick is gentler than the ends. You get fine control for small nudges and still hit full power at the extremes, which is the trick that makes a drive feel precise instead of twitchy.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Argument</th><th>Meaning</th></tr>
+        <tr><td><code>input</code></td><td>raw stick value, -127 to 127</td></tr>
+        <tr><td><code>curve</code></td><td>how much to bend it. <code>1.0</code> is linear; higher (2 or 3) gives more finesse near the center. Default <code>2.0</code></td></tr>
+        <tr><td><code>deadband</code></td><td>anything this small either way reads as <code>0</code>, killing stick drift. Default <code>5</code></td></tr>
+      </table>
+      </div>
+      <pre><code>left_mg.<span class="tok-fn">move</span>(clockwork::<span class="tok-fn">joystickCurve</span>(y + x, <span class="tok-num">2.0f</span>, <span class="tok-num">5</span>));</code></pre>
     </section>
 
     <!-- EXAMPLES -->
