@@ -13,6 +13,7 @@ CXX="${CXX:-c++}"
   "$root/test/test_clockwork.cpp" \
   "$root/src/clockwork/pid.cpp" \
   "$root/src/clockwork/slew.cpp" \
+  "$root/src/clockwork/curve.cpp" \
   -o "$out"
 
 "$out"

@@ -2,8 +2,10 @@
 // robot: PIDController and SlewRateLimiter. Build and run them on your computer
 // with test/run.sh (or `make test`). No PROS, no V5 brain required.
 
+#include "clockwork/curve.hpp"
 #include "clockwork/pid.hpp"
 #include "clockwork/slew.hpp"
+#include "clockwork/toggle.hpp"
 #include <cmath>
 #include <cstdio>
 
@@ -81,6 +83,35 @@ static void test_slew_ramp_down_and_reset() {
 	CHECK(near(slew.calculate(0.0f), 0.0f));
 }
 
+static void test_toggle() {
+	clockwork::Toggle t;
+	CHECK(t.state() == false);          // starts off
+	CHECK(t.update(false) == false);    // no press, no change
+	CHECK(t.update(true) == true);      // rising edge flips it on
+	CHECK(t.update(true) == true);      // still held, stays on
+	CHECK(t.update(false) == true);     // release, stays on
+	CHECK(t.update(true) == false);     // next press flips it off
+	t.set(true);
+	CHECK(t.state() == true);           // set() overrides
+	clockwork::Toggle t2(true);
+	CHECK(t2.state() == true);          // honors the initial value
+}
+
+static void test_joystick_curve() {
+	// Deadband zeroes out small input.
+	CHECK(near(clockwork::joystickCurve(0, 1.0f, 5), 0.0f));
+	CHECK(near(clockwork::joystickCurve(4, 1.0f, 5), 0.0f));
+	// Linear curve with no deadband passes the extremes straight through.
+	CHECK(near(clockwork::joystickCurve(127, 1.0f, 0), 127.0f));
+	CHECK(near(clockwork::joystickCurve(-127, 1.0f, 0), -127.0f));
+	// A higher curve pulls the middle down (finer low-speed control).
+	float linearMid = clockwork::joystickCurve(64, 1.0f, 0);
+	float curvedMid = clockwork::joystickCurve(64, 2.0f, 0);
+	CHECK(curvedMid < linearMid);
+	// Sign is always preserved.
+	CHECK(clockwork::joystickCurve(-64, 2.0f, 0) < 0.0f);
+}
+
 int main() {
 	std::printf("CLOCKWORK host tests\n");
 	test_pid_proportional();
@@ -89,6 +120,8 @@ int main() {
 	test_pid_settled_after_reset();
 	test_slew_ramp_up();
 	test_slew_ramp_down_and_reset();
+	test_toggle();
+	test_joystick_curve();
 
 	std::printf("%d checks, %d failed\n", g_checks, g_fails);
 	if (g_fails == 0) std::printf("OK\n");
