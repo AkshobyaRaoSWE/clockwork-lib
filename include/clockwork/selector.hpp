@@ -7,79 +7,63 @@
 
 namespace clockwork {
 
-/**
- * @brief A no-frills autonomous selector you drive from the controller.
- *
- * You register your autonomous routines by name, then let the driver scroll
- * through them with the controller D-pad before the match. The current pick
- * shows up on the controller screen and the brain screen. When autonomous
- * starts, you call run() and it runs whichever routine was selected.
- *
- * It needs nothing but core PROS (no liblvgl / LLEMU), so it works on any
- * project. The routines are plain `void()` functions, so anything you can call
- * you can register (a lambda, a free function, a method bound with std::bind).
- *
- * Typical wiring:
- * @code
- * clockwork::AutonSelector selector(&controller);
- *
- * void initialize() {
- *     selector.add("Left side rush",  left_rush);
- *     selector.add("Right side safe", right_safe);
- *     selector.add("Do nothing",      [] {});
- *     selector.draw();
- * }
- *
- * void competition_initialize() {
- *     // Let the driver pick while we wait for the match to start.
- *     while (true) { selector.poll(); pros::delay(20); }
- * }
- *
- * void autonomous() { selector.run(); }
- * @endcode
- */
+// A no-frills autonomous selector you drive from the controller. You register
+// your routines by name, the driver scrolls through them with the D-pad before
+// the match, and the current pick shows on both the controller and brain
+// screens. When auton starts you call run() and it fires whichever one was
+// selected.
+//
+// It needs nothing but core PROS (no liblvgl / LLEMU), so it drops into any
+// project. Routines are plain void() functions, so anything callable works: a
+// free function, a lambda, a method bound with std::bind.
+//
+// The usual wiring:
+//
+//   clockwork::AutonSelector selector(&controller);
+//
+//   void initialize() {
+//       selector.add("Left side rush",  left_rush);
+//       selector.add("Right side safe", right_safe);
+//       selector.add("Do nothing",      [] {});
+//       selector.draw();
+//   }
+//
+//   void competition_initialize() {
+//       // let the driver pick while we wait for the match to start
+//       while (true) { selector.poll(); pros::delay(20); }
+//   }
+//
+//   void autonomous() { selector.run(); }
 class AutonSelector {
 public:
-    /**
-     * @brief Build a selector.
-     * @param controller the controller to read the D-pad from and print to.
-     *                   May be null if you only want to drive it in code.
-     */
+    // controller is what it reads the D-pad from and prints to. Pass null if you
+    // only ever set the selection in code.
     explicit AutonSelector(pros::Controller* controller = nullptr);
 
-    /// Register a routine under a display @p name. First one added is selected.
+    // Register a routine under a display name. The first one you add is selected.
     void add(const std::string& name, std::function<void()> routine);
 
-    /// Move the selection forward one (wraps around) and redraw.
-    void next();
-    /// Move the selection back one (wraps around) and redraw.
-    void prev();
-    /// Select by list position (clamped to a valid index) and redraw.
-    void select(int index);
-    /// Select by name. Returns true if a routine with that name existed.
-    bool select(const std::string& name);
+    void next();              // forward one, wraps around, redraws
+    void prev();              // back one, wraps around, redraws
+    void select(int index);   // jump to a position (clamped), redraws
+    bool select(const std::string& name); // jump by name; true if it existed
 
-    /// Index of the current selection, or -1 if nothing is registered.
-    int index() const;
-    /// How many routines are registered.
-    int count() const;
-    /// Name of the current selection ("None" if nothing is registered).
-    const std::string& name() const;
+    int index() const;  // current position, or -1 if nothing is registered
+    int count() const;  // how many routines are registered
+    const std::string& name() const; // current name ("None" if empty)
 
-    /// Run the selected routine. Call this from autonomous(). No-op if empty.
+    // Run the selected routine. Call this from autonomous(). Does nothing if the
+    // list is empty.
     void run();
 
-    /**
-     * @brief One iteration of the interactive picker. Call it in a loop.
-     *
-     * Reads the controller D-pad: RIGHT/DOWN move to the next routine, LEFT/UP
-     * move to the previous one, and it redraws on any change. Does nothing if no
-     * controller was given. Put it in a loop in competition_initialize() (or
-     * disabled()) with a short delay so the driver can pick before the match.
-     */
+    // One pass of the interactive picker; call it in a loop. RIGHT/DOWN on the
+    // D-pad move to the next routine, LEFT/UP to the previous, and it redraws on
+    // a change. Does nothing without a controller. Drop it in a loop in
+    // competition_initialize() (or disabled()) with a short delay so the driver
+    // can pick before the match.
     void poll();
 
-    /// Push the current selection to the controller and brain screens.
+    // Push the current pick to the controller and brain screens.
     void draw();
 
 private:

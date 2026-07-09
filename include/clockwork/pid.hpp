@@ -2,102 +2,60 @@
 
 namespace clockwork {
 
-/**
- * @brief A tiny, self-contained PID controller for any subsystem you want to
- *        hold at a target: an arm, a lift, a flywheel, a wall-align, anything.
- *
- * LemLib already PID-controls the *drivetrain* for you. This class is for
- * everything else, the mechanisms lemlib does not touch. You give it the three
- * gains, then each loop you feed it the error (how far you are from where you
- * want to be) and it hands back a motor power.
- *
- * ### What the three gains mean (read this before you tune)
- *
- * The controller output is:
- *
- *     output = kP * error  +  kI * (running sum of error)  +  kD * (change in error)
- *
- * - **kP (proportional)** is the main dial. Output is `kP * error`, so the
- *   further you are from the target, the harder it pushes. Too low: the arm
- *   never quite gets there (sags short). Too high: it overshoots and shakes.
- *   Tune this FIRST, with kI and kD at 0, until it reaches the target and only
- *   slightly overshoots.
- * - **kD (derivative)** is the brake. It reacts to how fast the error is
- *   shrinking and pushes back against it, damping the overshoot and wobble that
- *   a high kP causes. Add this SECOND, a little at a time, until the shake from
- *   kP is gone. Too high: it gets jittery / buzzy.
- * - **kI (integral)** is the closer. It accumulates leftover error over time, so
- *   a small steady offset (e.g. gravity holding an arm just below target) keeps
- *   building output until it is finally corrected. Add this LAST, and keep it
- *   TINY (often 10-100x smaller than kP). Too high: it winds up and oscillates
- *   slowly. Many mechanisms need kI = 0.
- *
- * Tuning order, every time: **P, then D, then (maybe) I.**
- *
- * ### Units
- * `error` is in whatever you measure in (degrees, inches, RPM). `output` is in
- * whatever you drive with. For VEX motors that is -127..127, so set
- * `outputCap` to 127. The gains carry the conversion between the two.
- *
- * ### Loop timing
- * Call update() at a steady interval (e.g. `pros::delay(10)` each loop). The
- * math assumes a fixed time step and folds it into the gains, so if you change
- * the loop delay you will need to re-tune.
- */
+// A tiny PID controller for anything you want to hold at a target: an arm, a
+// lift, a flywheel, a wall-align, whatever. LemLib already PID-controls the
+// drivetrain, so this is for the mechanisms it doesn't touch. You hand it the
+// three gains, then every loop you give it the error (how far off you are) and
+// it hands back a motor power.
+//
+// The output is:
+//
+//     output = kP * error  +  kI * (running sum of error)  +  kD * (change in error)
+//
+// The three gains, in the order you should tune them:
+//
+//   kP (proportional) is the main dial. Output is kP * error, so the further
+//     off you are the harder it pushes. Too low and the arm sags short; too high
+//     and it overshoots and shakes. Tune this first with kI and kD at 0.
+//   kD (derivative) is the brake. It reacts to how fast the error is shrinking
+//     and pushes back, damping the overshoot a high kP causes. Add it second, a
+//     bit at a time, until the shake is gone. Too high and it buzzes.
+//   kI (integral) is the closer. It adds up leftover error over time, so a small
+//     steady offset (gravity holding an arm just below target) eventually gets
+//     corrected. Add it last and keep it tiny (often 10-100x smaller than kP).
+//     Plenty of mechanisms want kI = 0.
+//
+// So: P, then D, then maybe I. Error is in whatever you measure (degrees,
+// inches, RPM) and output is in whatever you drive (for VEX motors that's
+// -127..127, so pass outputCap = 127). The gains carry the conversion. Call
+// update() on a steady loop; the math assumes a fixed time step, so if you
+// change the loop delay you'll need to re-tune.
 class PIDController {
 public:
-    /**
-     * @brief Build a controller from its three gains.
-     *
-     * @param kP          proportional gain (start here; tune first)
-     * @param kI          integral gain (keep tiny; tune last; 0 is common)
-     * @param kD          derivative gain (the damper; tune second)
-     * @param integralCap absolute limit on the accumulated integral term, in
-     *                    error units. Stops "integral windup" (the sum growing
-     *                    huge during a long push and then overshooting wildly).
-     *                    0 disables the cap. Default 0.
-     * @param outputCap   absolute limit on the returned output. For a VEX motor
-     *                    pass 127 so update() never returns an out-of-range
-     *                    power. 0 disables the cap. Default 0.
-     */
+    // kP/kI/kD are the gains above. integralCap limits how big the running sum
+    // can get, which stops "integral windup" (the sum ballooning during a long
+    // push and then overshooting hard); 0 turns the cap off. outputCap limits
+    // the returned power; pass 127 for a VEX motor so update() never returns
+    // something out of range. 0 turns that off too.
     PIDController(float kP, float kI, float kD, float integralCap = 0.0f,
                   float outputCap = 0.0f);
 
-    /**
-     * @brief Step the controller once and get a control output.
-     *
-     * Call this every loop with the current error (`target - measured`). The
-     * sign of the return value follows the sign of the error, so a positive
-     * error gives a positive output.
-     *
-     * @param error target minus current measurement (e.g. `targetDeg - armDeg`)
-     * @return the control output, clamped to `outputCap` if one was set
-     */
+    // Step the controller once. Call it every loop with (target - measured). The
+    // sign of the return follows the sign of the error, and it's clamped to
+    // outputCap if you set one.
     float update(float error);
 
-    /**
-     * @brief Forget all history (integral sum and last error).
-     *
-     * Call this whenever you start a fresh move to a new target, so leftover
-     * accumulation from the previous move does not kick the mechanism.
-     */
+    // Wipe the history (the running sum and last error). Do this when you start
+    // a fresh move, so leftovers from the last one don't kick the mechanism.
     void reset();
 
-    /// Swap in new gains at runtime (e.g. different gains loaded vs. empty).
+    // Swap in new gains on the fly (say, different gains for loaded vs. empty).
     void setGains(float kP, float kI, float kD);
 
-    /**
-     * @brief A simple "have we arrived?" test for exiting a control loop.
-     *
-     * True when, on the most recent update(), the error is within @p tolerance
-     * AND the error is barely changing (within @p stillness per step), so
-     * the mechanism is both on target and no longer moving, not just passing
-     * through the target at speed.
-     *
-     * @param tolerance error band counted as "at target" (error units)
-     * @param stillness max per-update change in error still counted as settled
-     *                  (error units; default 1.0)
-     */
+    // A simple "are we there yet?" check for ending a control loop. True when
+    // the last update() was within tolerance of the target AND barely moving
+    // (change under stillness), so it's actually settled instead of blowing
+    // through the target at speed.
     bool settled(float tolerance, float stillness = 1.0f) const;
 
 private:
