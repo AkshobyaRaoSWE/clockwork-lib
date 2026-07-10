@@ -14,6 +14,8 @@ CXX="${CXX:-c++}"
   "$root/src/clockwork/pid.cpp" \
   "$root/src/clockwork/slew.cpp" \
   "$root/src/clockwork/curve.cpp" \
+  "$root/src/clockwork/profile.cpp" \
+  "$root/src/clockwork/flywheel.cpp" \
   -o "$out"
 
 "$out"
