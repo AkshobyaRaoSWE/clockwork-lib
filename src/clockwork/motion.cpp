@@ -1,4 +1,5 @@
 #include "clockwork/motion.hpp"
+#include "clockwork/geometry.hpp" // signedForwardDistance
 #include "lemlib/util.hpp" // lemlib::angleError, degToRad
 #include "pros/rtos.hpp"
 #include <cstdint>
@@ -55,11 +56,6 @@ void Motion::driveDistance(float dist, int maxSpeed, int timeoutMs,
                            float headingKp, float settleRange, float driveKp) {
 	const lemlib::Pose start = m_chassis->getPose();
 	const float targetHeading = start.theta; // degrees
-	const float hRad = lemlib::degToRad(targetHeading);
-	// lemlib compass heading: 0 deg = +Y, increasing clockwise.
-	// Forward unit vector = (sin, cos); project displacement onto it for signed travel.
-	const float sinH = std::sin(hRad);
-	const float cosH = std::cos(hRad);
 
 	const float distKp = driveKp; // power per inch of remaining distance
 	const int minPower = 12;      // floor to overcome static friction near target
@@ -70,7 +66,8 @@ void Motion::driveDistance(float dist, int maxSpeed, int timeoutMs,
 
 	while (pros::millis() - t0 < static_cast<std::uint32_t>(timeoutMs)) {
 		const lemlib::Pose pose = m_chassis->getPose();
-		const float traveled = (pose.x - start.x) * sinH + (pose.y - start.y) * cosH;
+		const float traveled = signedForwardDistance(start.x, start.y, pose.x,
+		                                             pose.y, targetHeading);
 		const float err = dist - traveled;
 
 		if (std::fabs(err) < settleRange) {
@@ -126,6 +123,20 @@ void Motion::turnBy(float degrees, int timeoutMs, int maxSpeed) {
 	// async defaults to true on the chassis; force blocking for a predictable
 	// call-and-wait primitive.
 	m_chassis->turnToHeading(target, timeoutMs, params, false);
+}
+
+void Motion::turnToHeading(float heading, int timeoutMs, int maxSpeed) {
+	lemlib::TurnToHeadingParams params;
+	params.maxSpeed = maxSpeed;
+	m_chassis->turnToHeading(heading, timeoutMs, params, false); // blocking
+}
+
+void Motion::moveToPoint(float x, float y, int timeoutMs, int maxSpeed,
+                         bool forwards) {
+	lemlib::MoveToPointParams params;
+	params.maxSpeed = maxSpeed;
+	params.forwards = forwards;
+	m_chassis->moveToPoint(x, y, timeoutMs, params, false); // blocking
 }
 
 bool Motion::driveUntilStalled(int power, int timeoutMs, float headingKp) {

@@ -44,6 +44,17 @@ public:
     // chassis's own tuned turn PID. Blocks until it settles or times out.
     void turnBy(float degrees, int timeoutMs = 1500, int maxSpeed = 127);
 
+    // Turn to face an absolute field heading in degrees (0 is +Y, clockwise
+    // positive, matching lemlib). Same tuned turn PID as turnBy, but you give it
+    // the heading you want instead of a relative amount. Blocks.
+    void turnToHeading(float heading, int timeoutMs = 1500, int maxSpeed = 127);
+
+    // Drive to a field point (x, y) in inches, letting lemlib's motion profile
+    // handle the path. Set forwards = false to back into the point. Blocks until
+    // it arrives or times out. Needs a working pose, so run odometry first.
+    void moveToPoint(float x, float y, int timeoutMs = 3000, int maxSpeed = 127,
+                     bool forwards = true);
+
     // Drive at power and hold heading until the robot stops moving (it hit a wall
     // or field element) or times out. The stall is read off the odometry pose, so
     // there's no motor-current wiring to set up. Returns true if it actually
