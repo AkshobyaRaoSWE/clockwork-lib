@@ -56,6 +56,8 @@
   .step-head .swatch { width: 8px; height: 8px; border-radius: 2px; }
   .step-head .nm { font-weight: 600; font-size: 12.5px; flex: 1; }
   .step-head .dur { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .step-head .del-x { font-size: 15px; line-height: 1; color: var(--faint); padding: 2px 4px; border-radius: 5px; cursor: pointer; }
+  .step-head .del-x:hover { color: var(--red); background: #2a1618; }
   .step-body { padding: 0 10px 10px; display: none; }
   .step.sel .step-body { display: block; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
@@ -603,7 +605,7 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
       else if(s.type==='note'){ body+='<div class="row1">'+fieldInput(s,i,'text','comment text')+'</div>'; }
       else { body+='<div class="hint" style="margin:6px 0 0">'+def.name+', no parameters.</div><div class="row1">'+fieldInput(s,i,'label','comment')+'</div>'; }
       body+='<div class="step-actions"><button class="mini" data-mv="up" data-i="'+i+'">↑</button><button class="mini" data-mv="down" data-i="'+i+'">↓</button><button class="mini" data-dup="'+i+'">dup</button><button class="mini danger" data-del="'+i+'">delete</button></div>';
-      el.innerHTML='<div class="step-head" data-sel="'+i+'"><span class="idx">'+(i+1)+'</span><span class="swatch" style="background:'+def.swatch+'"></span><span class="nm">'+title+'</span><span class="dur">'+dur+'</span></div><div class="step-body">'+body+'</div>';
+      el.innerHTML='<div class="step-head" data-sel="'+i+'"><span class="idx">'+(i+1)+'</span><span class="swatch" style="background:'+def.swatch+'"></span><span class="nm">'+title+'</span><span class="dur">'+dur+'</span><span class="del-x" data-del="'+i+'" title="delete step">×</span></div><div class="step-body">'+body+'</div>';
       host.appendChild(el);
     });
     // add bar
@@ -665,11 +667,11 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
     var v=parseFloat(this.value); if(isNaN(v))return; if(id==='startX')state.start.x=v; else if(id==='startY')state.start.y=v; else state.start.h=v; buildSim(); update(); }); });
 
   document.getElementById('stepList').addEventListener('click',function(e){
-    var t=e.target;
-    if(t.dataset.sel!==undefined){ state.selected=+t.dataset.sel; state.t=stepCursor(state.selected); renderEditor(); update(); return; }
-    if(t.dataset.del!==undefined){ state.route.splice(+t.dataset.del,1); state.selected=clamp(state.selected,0,state.route.length-1); refresh(); return; }
+    var t=e.target.closest('[data-del],[data-dup],[data-mv],[data-sel]'); if(!t)return;
+    if(t.dataset.del!==undefined){ state.route.splice(+t.dataset.del,1); state.selected=clamp(state.selected,0,Math.max(0,state.route.length-1)); refresh(); return; }
     if(t.dataset.dup!==undefined){ var i=+t.dataset.dup; state.route.splice(i+1,0,Object.assign({},state.route[i])); state.selected=i+1; refresh(); return; }
     if(t.dataset.mv){ var i2=+t.dataset.i, j=t.dataset.mv==='up'?i2-1:i2+1; if(j<0||j>=state.route.length)return; var tmp=state.route[i2]; state.route[i2]=state.route[j]; state.route[j]=tmp; state.selected=j; refresh(); return; }
+    if(t.dataset.sel!==undefined){ var s=+t.dataset.sel; state.selected=(state.selected===s?-1:s); state.t=stepCursor(state.selected<0?s:state.selected); renderEditor(); update(); return; }
   });
   document.getElementById('stepList').addEventListener('input',function(e){ var t=e.target, i=+t.dataset.i, k=t.dataset.k; if(k===undefined||isNaN(i))return;
     var s=state.route[i]; if(k==='forwards'){ s.forwards=(t.value==='1'); } else if(k==='text'||k==='label'){ s[k]=t.value; } else { var v=parseFloat(t.value); s[k]=isNaN(v)?0:v; }
