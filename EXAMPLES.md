@@ -246,3 +246,60 @@ void opcontrol() {
     }
 }
 ```
+
+## 12. Field-coordinate auton (point and heading moves)
+
+`moveToPoint` and `turnToHeading` let you write a routine in field coordinates
+instead of relative hops. Both block until they finish.
+
+```cpp
+void skills_open() {
+    clockwork::Motion motion(&chassis);
+    chassis.setPose(0, 0, 0);
+
+    motion.moveToPoint(24, 24, 3000);   // drive to (24, 24)
+    motion.turnToHeading(90);           // face 90 degrees
+    motion.moveToPoint(48, 24, 2500);   // continue to (48, 24)
+    motion.moveToPoint(24, 24, 2500, 100, false); // back up to (24, 24)
+}
+```
+
+## 13. Flywheel held at speed
+
+`FlywheelController` keeps a shooter at a target RPM and snaps back after each
+shot drags it down.
+
+```cpp
+pros::Motor flywheel(11);
+// kFF ~ 127/maxRpm gets it to speed; kP trims and recovers.
+clockwork::FlywheelController fw(0.21f, 0.05f);
+
+void run_flywheel(int targetRpm) {
+    while (true) {
+        flywheel.move(fw.update(targetRpm, flywheel.get_actual_velocity()));
+        pros::delay(10);
+    }
+}
+```
+
+## 14. Smooth open-loop move with a trapezoidal profile
+
+Follow a profile's position/velocity over time when you want a hand-tuned, smooth
+move without full odometry.
+
+```cpp
+void nudge_forward() {
+    clockwork::TrapezoidalProfile profile(24.0f, 40.0f, 80.0f); // 24 in, 40 in/s, 80 in/s^2
+    std::uint32_t start = pros::millis();
+    while (true) {
+        float t = (pros::millis() - start) / 1000.0f; // seconds
+        if (t >= profile.totalTime()) break;
+        int power = (int)(profile.velocityAt(t) * (127.0f / 40.0f)); // vel -> power
+        left_mg.move(power);
+        right_mg.move(power);
+        pros::delay(10);
+    }
+    left_mg.move(0);
+    right_mg.move(0);
+}
+```

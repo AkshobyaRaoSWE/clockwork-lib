@@ -3,6 +3,32 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-07-10
+
+### Added
+- `clockwork::TrapezoidalProfile`, a speed-up / cruise / slow-down motion
+  profile. Give it a distance, top speed, and acceleration; it hands back the
+  target velocity and position at any time. Falls back to a triangle profile
+  when the distance is too short to reach top speed, and supports reverse moves.
+- `clockwork::FlywheelController`, a feedforward-plus-P velocity controller for
+  a flywheel or any wheel you want holding an RPM. Output is clamped to one
+  direction, and it recovers after a shot drags the speed down.
+- `Motion::turnToHeading(heading, ...)`, turn to an absolute field heading with
+  the chassis's tuned turn PID (the absolute counterpart to `turnBy`).
+- `Motion::moveToPoint(x, y, ...)`, a blocking drive to a field point using
+  lemlib's motion profiling, with an optional backwards mode.
+- `clockwork::signedForwardDistance(...)` in a new `geometry.hpp`, the exact
+  forward-progress projection `driveDistance` uses, pulled out so it can be
+  tested on its own.
+
+### Changed
+- `driveDistance` now calls `signedForwardDistance` instead of an inline copy of
+  the same math, so the shipped code and the tested helper are one and the same.
+- Host test suite expanded to a stress pass: integral windup limits, output
+  clamps under extreme input, convergence from both directions, slew never
+  overshooting a jumping target, curve bounds and deadband edges, the geometry
+  conventions, and every trapezoidal-profile and flywheel invariant. 700+ checks.
+
 ## [1.5.0] - 2026-07-09
 
 ### Added
@@ -88,6 +114,7 @@ All notable changes to this project are documented here. This project follows
   with a P heading hold.
 - PROS template packaging + `depot.json` for `pros c add-depot`.
 
+[1.6.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.6.0
 [1.5.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.5.0
 [1.4.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.4.0
 [1.3.0]: https://github.com/AkshobyaRaoSWE/clockwork-lib/releases/tag/v1.3.0

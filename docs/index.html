@@ -156,10 +156,10 @@
 </style>
 </head>
 <body>
-<div class="mobile-top"><span class="mark">CLOCKWORK</span> <span class="muted" style="font-size:12px">· VEX V5 · v1.5.0</span></div>
+<div class="mobile-top"><span class="mark">CLOCKWORK</span> <span class="muted" style="font-size:12px">· VEX V5 · v1.6.0</span></div>
 <div class="layout">
   <aside>
-    <div class="brand"><span class="mark">CLOCKWORK</span><span class="ver">v1.5.0</span></div>
+    <div class="brand"><span class="mark">CLOCKWORK</span><span class="ver">v1.6.0</span></div>
     <p class="brand-sub">VEX V5 motion &amp; control, on LemLib</p>
     <nav id="nav">
       <div class="group">Start</div>
@@ -177,6 +177,8 @@
       <a href="#pneumatics">Pneumatics</a>
       <a href="#toggle">Toggle</a>
       <a href="#curve">Joystick curve</a>
+      <a href="#profile">Motion profile</a>
+      <a href="#flywheel">Flywheel</a>
       <div class="group">More</div>
       <a href="#examples">Examples</a>
       <a href="#testing">Testing</a>
@@ -224,6 +226,8 @@
         <tr><td><code>Pneumatics</code></td><td>A clamp/wings piston with extend / retract / toggle and state</td></tr>
         <tr><td><code>Toggle</code></td><td>Latch a boolean on a single button press (one-button clamps, modes)</td></tr>
         <tr><td><code>joystickCurve</code></td><td>Shape joystick input for fine low-speed control, still full at the ends</td></tr>
+        <tr><td><code>TrapezoidalProfile</code></td><td>Speed-up / cruise / slow-down motion profile for smooth moves</td></tr>
+        <tr><td><code>FlywheelController</code></td><td>Hold a flywheel at a target RPM with feedforward plus a P trim</td></tr>
       </table>
       </div>
       <p class="muted">Nothing here owns your hardware. <code>Motion</code> borrows a <code>lemlib::Chassis*</code>, <code>Roller</code> borrows a <code>pros::MotorGroup*</code>, and <code>PIDController</code> is standalone. You keep full control of your own devices.</p>
@@ -238,7 +242,7 @@
       <pre><code>pros c add-depot clockwork https://raw.githubusercontent.com/AkshobyaRaoSWE/clockwork-lib/main/depot.json
 pros c apply clockwork</code></pre>
       <h5>From a release zip</h5>
-      <pre><code>pros c fetch clockwork@1.5.0.zip
+      <pre><code>pros c fetch clockwork@1.6.0.zip
 pros c apply clockwork</code></pre>
       <div class="note warn"><span class="lbl">Heads up</span><code>pros c apply &lt;path-to-zip&gt;</code> does not read a file path. It reads the argument as a <code>name@version</code> query. So always <code>fetch</code> the zip first, then <code>apply clockwork</code>.</div>
       <p>To upgrade later, just run <code>pros c apply clockwork</code> again once the depot refreshes.</p>
@@ -362,6 +366,8 @@ clockwork::<span class="tok-type">Roller</span> intake(&amp;intake_motors);
         <tr><td><code>driveDistance</code></td><td><code>(float dist, int maxSpeed = 127, int timeoutMs = 3000, float headingKp = 2.0f, float settleRange = 1.0f, float driveKp = 8.0f)</code></td></tr>
         <tr><td><code>driveTimed</code></td><td><code>(int ms, int speed, float headingKp = 2.0f)</code></td></tr>
         <tr><td><code>turnBy</code></td><td><code>(float degrees, int timeoutMs = 1500, int maxSpeed = 127)</code></td></tr>
+        <tr><td><code>turnToHeading</code></td><td><code>(float heading, int timeoutMs = 1500, int maxSpeed = 127)</code></td></tr>
+        <tr><td><code>moveToPoint</code></td><td><code>(float x, float y, int timeoutMs = 3000, int maxSpeed = 127, bool forwards = true)</code></td></tr>
         <tr><td><code>driveUntilStalled</code></td><td><code>(int power, int timeoutMs = 3000, float headingKp = 2.0f) &rarr; bool</code></td></tr>
       </table>
       </div>
@@ -551,6 +557,43 @@ clockwork::<span class="tok-type">PIDController</span> armPid(<span class="tok-n
       <pre><code>left_mg.<span class="tok-fn">move</span>(clockwork::<span class="tok-fn">joystickCurve</span>(y + x, <span class="tok-num">2.0f</span>, <span class="tok-num">5</span>));</code></pre>
     </section>
 
+    <!-- PROFILE -->
+    <section id="profile">
+      <h2>Reference</h2>
+      <h3>clockwork::TrapezoidalProfile</h3>
+      <pre><code>clockwork::<span class="tok-type">TrapezoidalProfile</span> profile(<span class="tok-num">24.0f</span>, <span class="tok-num">40.0f</span>, <span class="tok-num">80.0f</span>); <span class="tok-com">// distance, maxVel, maxAccel</span></code></pre>
+      <p>A speed-up / cruise / slow-down motion profile, the smooth shape you want for a move instead of slamming to full speed and back. You give it how far to go, the top speed to allow, and how hard it may accelerate; it works out the timing and tells you the target velocity and position at any moment. If the distance is too short to reach top speed it hands you a triangle instead of a trapezoid, and a negative distance profiles a reverse move.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>totalTime()</code></td><td>how long the whole move takes</td></tr>
+        <tr><td><code>velocityAt(float t)</code></td><td>target velocity at time <code>t</code> (0 before the start and after the end)</td></tr>
+        <tr><td><code>positionAt(float t)</code></td><td>distance covered by time <code>t</code>, clamped to the full distance</td></tr>
+        <tr><td><code>distance()</code></td><td>the distance it covers</td></tr>
+      </table>
+      </div>
+      <p class="muted">Units are yours to pick as long as they agree: inches and inches/sec means acceleration is inches/sec&sup2; and time is seconds.</p>
+      <pre><code><span class="tok-type">float</span> t = (pros::<span class="tok-fn">millis</span>() - start) / <span class="tok-num">1000.0f</span>;
+<span class="tok-type">int</span> power = (<span class="tok-type">int</span>)(profile.<span class="tok-fn">velocityAt</span>(t) * (<span class="tok-num">127.0f</span> / <span class="tok-num">40.0f</span>)); <span class="tok-com">// velocity -> power</span></code></pre>
+    </section>
+
+    <!-- FLYWHEEL -->
+    <section id="flywheel">
+      <h2>Reference</h2>
+      <h3>clockwork::FlywheelController</h3>
+      <pre><code>clockwork::<span class="tok-type">FlywheelController</span> fw(<span class="tok-num">0.21f</span>, <span class="tok-num">0.05f</span>); <span class="tok-com">// kFF, kP  (outputMax defaults to 127)</span></code></pre>
+      <p>A velocity controller for a flywheel. A position PID is the wrong tool for a spinning mass, so this uses the combo that works: <code>output = kFF * targetRpm + kP * (targetRpm - measuredRpm)</code>. The feedforward term (<code>kFF</code>) guesses the power to hold the target speed and does the heavy lifting; the proportional term (<code>kP</code>) trims the error and helps it snap back after a shot drags the wheel down. Output is clamped to <code>[0, outputMax]</code> because a flywheel only spins one way.</p>
+      <div class="tbl-wrap">
+      <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td><code>update(targetRpm, measuredRpm)</code></td><td>Call every loop; returns a power in <code>[0, outputMax]</code></td></tr>
+        <tr><td><code>setGains(kFF, kP)</code></td><td>Swap gains at runtime (a different speed preset)</td></tr>
+      </table>
+      </div>
+      <div class="note"><span class="lbl">Tuning</span>Set <code>kP</code> to 0 and raise <code>kFF</code> until the wheel settles near the target on its own (start around <code>outputMax / maxRpm</code>, so ~0.21 for 600 RPM). Then add a little <code>kP</code> for faster recovery after a shot.</div>
+      <pre><code>flywheel.<span class="tok-fn">move</span>(fw.<span class="tok-fn">update</span>(<span class="tok-num">500</span>, flywheel.<span class="tok-fn">get_actual_velocity</span>()));</code></pre>
+    </section>
+
     <!-- EXAMPLES -->
     <section id="examples">
       <h2>More</h2>
@@ -591,7 +634,7 @@ clockwork::<span class="tok-type">PIDController</span> armPid(<span class="tok-n
       <pre><code>make test        <span class="tok-com"># or: bash test/run.sh</span></code></pre>
       <p>That builds the tests with your system compiler and runs them. They check the proportional math, the output clamp, that a PID actually converges on a target, and that the slew limiter ramps and never overshoots.</p>
       <pre><code>CLOCKWORK host tests
-15 checks, 0 failed
+747 checks, 0 failed
 OK</code></pre>
       <p class="muted">The motion helpers and the selector talk to real hardware, so they are verified by building the template into a project and running it on a robot.</p>
     </section>

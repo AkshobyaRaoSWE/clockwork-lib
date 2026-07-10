@@ -1,6 +1,6 @@
 # CLOCKWORK
 
-![version](https://img.shields.io/badge/version-1.5.0-blue)
+![version](https://img.shields.io/badge/version-1.6.0-blue)
 ![platform](https://img.shields.io/badge/platform-VEX%20V5-red)
 ![PROS](https://img.shields.io/badge/PROS-kernel%20%5E4.2.1-orange)
 ![LemLib](https://img.shields.io/badge/depends-LemLib-green)
@@ -38,6 +38,8 @@ explains every tuning number in this library in plain words.
   - [`Pneumatics`](#clockworkpneumatics)
   - [`Toggle`](#clockworktoggle)
   - [`joystickCurve`](#clockworkjoystickcurve)
+  - [`TrapezoidalProfile`](#clockworktrapezoidalprofile)
+  - [`FlywheelController`](#clockworkflywheelcontroller)
 - [Tuning cheat sheet](#tuning-cheat-sheet)
 - [Testing](#testing)
 - [Building and releasing](#building-and-releasing)
@@ -51,7 +53,8 @@ explains every tuning number in this library in plain words.
 | `Motion::driveFullThenSlow` | Drive straight fast, then ease down to a slow speed for a gentle arrival |
 | `Motion::driveDistance`     | Drive a set number of inches, slowing near the target, holding heading |
 | `Motion::driveTimed`        | Push at a fixed power for a fixed time (ram or square up) |
-| `Motion::turnBy`            | Turn a relative number of degrees using the chassis's tuned turn PID |
+| `Motion::turnBy` / `turnToHeading` | Turn a relative amount, or to an absolute field heading, on the tuned turn PID |
+| `Motion::moveToPoint`       | Drive to a field point (x, y) using lemlib's motion profiling |
 | `Motion::driveUntilStalled` | Drive until the robot hits something, detected from odometry |
 | `Roller::in/out/stop/spin`  | Readable intake control, instead of `motor1.move(); motor2.move();` |
 | `Roller::pulse`             | Spin for a set time, then stop (blocking) |
@@ -64,6 +67,8 @@ explains every tuning number in this library in plain words.
 | **`Pneumatics`**            | **A clamp/wings piston with `extend` / `retract` / `toggle` and state** |
 | **`Toggle`**                | **Latch a boolean on a single button press (one-button clamps, modes)** |
 | **`joystickCurve`**         | **Shape joystick input for fine low-speed control, still full at the ends** |
+| **`TrapezoidalProfile`**    | **Speed-up / cruise / slow-down motion profile for smooth moves** |
+| **`FlywheelController`**    | **Hold a flywheel at a target RPM with feedforward plus a P trim** |
 
 Nothing here owns your hardware. `Motion` borrows a `lemlib::Chassis*`, `Roller`
 borrows a `pros::MotorGroup*`, and `PIDController` is standalone. You keep full
@@ -91,7 +96,7 @@ pros c apply clockwork
 
 ```bash
 # download clockwork@x.y.z.zip from the Releases page, then:
-pros c fetch clockwork@1.5.0.zip
+pros c fetch clockwork@1.6.0.zip
 pros c apply clockwork
 ```
 
@@ -259,6 +264,8 @@ with `setPose`. Pass negative speeds or distances to run in reverse.
 | `driveDistance`     | `(float dist, int maxSpeed = 127, int timeoutMs = 3000, float headingKp = 2.0f, float settleRange = 1.0f, float driveKp = 8.0f)` |
 | `driveTimed`        | `(int ms, int speed, float headingKp = 2.0f)` |
 | `turnBy`            | `(float degrees, int timeoutMs = 1500, int maxSpeed = 127)` |
+| `turnToHeading`     | `(float heading, int timeoutMs = 1500, int maxSpeed = 127)` |
+| `moveToPoint`       | `(float x, float y, int timeoutMs = 3000, int maxSpeed = 127, bool forwards = true)` |
 | `driveUntilStalled` | `(int power, int timeoutMs = 3000, float headingKp = 2.0f)` returns `bool` |
 
 - **driveFullThenSlow** runs full speed for `fullDist` inches, then `slowSpeed`
@@ -269,6 +276,11 @@ with `setPose`. Pass negative speeds or distances to run in reverse.
 - **driveTimed** applies `speed` for `ms` milliseconds, then stops.
 - **turnBy** turns `degrees` relative to your current heading (positive is
   clockwise) using the chassis's own turn PID. It blocks until it settles.
+- **turnToHeading** is the same tuned turn, but you give it an absolute field
+  heading (0 is +Y, clockwise positive) instead of a relative amount.
+- **moveToPoint** drives to a field point `(x, y)` in inches, letting lemlib
+  profile the path. Pass `forwards = false` to back into it. It needs a live
+  pose, so run odometry first.
 - **driveUntilStalled** drives at `power` until the robot stops moving (a wall,
   an obstacle) or times out. It returns `true` if it actually stalled. Great for
   squaring on a wall before an odom reset.
@@ -490,6 +502,64 @@ motor.
 left_mg.move(clockwork::joystickCurve(y + x, 2.0f, 5));
 ```
 
+### `clockwork::TrapezoidalProfile`
+
+```cpp
+clockwork::TrapezoidalProfile profile(24.0f, 40.0f, 80.0f); // distance, maxVel, maxAccel
+```
+
+A speed-up / cruise / slow-down motion profile. You give it how far to go, the
+top speed to allow, and how hard it may accelerate, and it works out the timing
+and tells you the target velocity and position at any moment. If the distance is
+too short to reach top speed it hands you a triangle instead of a trapezoid, and
+a negative distance profiles a reverse move.
+
+| Method | Description |
+|--------|-------------|
+| `totalTime()` | how long the whole move takes |
+| `velocityAt(float t)` | target velocity at time `t` (0 before the start and after the end) |
+| `positionAt(float t)` | distance covered by time `t`, clamped to the full distance |
+| `distance()` | the distance it covers |
+
+Units are yours to pick as long as they agree (inches and inches/sec means
+acceleration is inches/sec² and time is seconds).
+
+```cpp
+float t = (pros::millis() - start) / 1000.0f;
+int power = (int)(profile.velocityAt(t) * (127.0f / 40.0f)); // velocity -> motor power
+```
+
+### `clockwork::FlywheelController`
+
+```cpp
+clockwork::FlywheelController fw(0.21f, 0.05f); // kFF, kP  (outputMax defaults to 127)
+```
+
+A velocity controller for a flywheel. A position PID is the wrong tool for a
+spinning mass, so this uses the combo that works:
+
+```
+output = kFF * targetRpm + kP * (targetRpm - measuredRpm)
+```
+
+The feedforward term (`kFF`) guesses the power to hold the target speed and does
+the heavy lifting; the proportional term (`kP`) trims the error and helps it snap
+back after a shot drags the wheel down. Output is clamped to `[0, outputMax]`
+because a flywheel only spins one way.
+
+| Method | Description |
+|--------|-------------|
+| `update(targetRpm, measuredRpm)` returns `float` | Call every loop; returns a power in `[0, outputMax]` |
+| `setGains(kFF, kP)` | Swap gains at runtime (a different speed preset) |
+
+To tune: set `kP` to 0 and raise `kFF` until the wheel settles near the target on
+its own (start around `outputMax / maxRpm`, so ~`0.21` for 600 RPM). Then add a
+little `kP` for faster recovery.
+
+```cpp
+flywheel.move(fw.update(500, flywheel.get_actual_velocity()));
+```
+
 ---
 
 ## Tuning cheat sheet
@@ -523,12 +593,15 @@ make test        # or: bash test/run.sh
 ```
 
 That builds `test/test_clockwork.cpp` with your system compiler and runs it. It
-checks the proportional math, the output clamp, that a PID actually converges on
-a target, and that the slew limiter ramps and never overshoots. Expected output:
+is a real stress pass: the proportional math and output clamps under extreme
+input, integral windup limits, PID convergence from both directions, the slew
+limiter never overshooting a jumping target, the joystick curve's bounds and
+deadband edges, the geometry conventions `driveDistance` relies on, and every
+trapezoidal-profile and flywheel invariant. Expected output:
 
 ```
 CLOCKWORK host tests
-15 checks, 0 failed
+747 checks, 0 failed
 OK
 ```
 
