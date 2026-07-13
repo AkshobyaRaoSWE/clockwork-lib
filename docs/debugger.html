@@ -417,7 +417,8 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
   function sampleAt(t){ if(t<=0)return samples[0]; if(t>=TOTAL)return samples[samples.length-1]; return samples[Math.min(samples.length-1,Math.floor(t/DT))]; }
   function autonTime(){ var tot=0,pose={x:state.start.x,y:state.start.y,h:state.start.h};
     state.route.forEach(function(s){ tot+=stepDuration(s,pose);
-      if(s.type==='moveTo'){pose={x:s.x,y:s.y,h:pose.h};} else if(s.type==='turnTo'){pose.h=s.heading;} }); return tot; }
+      if(s.type==='moveTo'){pose={x:s.x,y:s.y,h:pose.h};} else if(s.type==='turnTo'){pose.h=s.heading;}
+      else if(s.type==='drive'){pose.x+=s.dist*Math.sin(rad(pose.h)); pose.y+=s.dist*Math.cos(rad(pose.h));} }); return tot; }
 
   // ---------------- canvas setup ---------------------------------------------
   function setup(cv,w,h){ var dpr=Math.min(window.devicePixelRatio||1,2); cv.width=w*dpr; cv.height=h*dpr; var c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); cv._w=w; cv._h=h; return c; }
@@ -469,15 +470,13 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
     ctx.strokeStyle='#3a3a42'; ctx.lineWidth=3; ctx.strokeRect(PAD,PAD,span,span);
 
     // ---- route path ----
-    var route=state.route, sc=span/FIELD;
-    var pts=[{x:state.start.x,y:state.start.y}];
-    route.forEach(function(s){ var last=pts[pts.length-1];
-      if(s.type==='moveTo') pts.push({x:s.x,y:s.y,step:s});
-      else if(s.type==='drive'){ /* approximate along last heading; skip point, keep last */ }
-      else pts.push({x:last.x,y:last.y,step:s}); });
-    // faint full path
+    var sc=span/FIELD;
+    // faint full path, traced from the simulated motion so every segment shows
+    // (moveTo, drive, curves) instead of just straight waypoint hops.
     ctx.strokeStyle='rgba(123,207,154,0.35)'; ctx.lineWidth=2; ctx.beginPath();
-    pts.forEach(function(p,i){ i?ctx.lineTo(px(p.x,S),py(p.y,S)):ctx.moveTo(px(p.x,S),py(p.y,S)); }); ctx.stroke();
+    ctx.moveTo(px(state.start.x,S),py(state.start.y,S));
+    for(var pi=0;pi<samples.length;pi+=2){ ctx.lineTo(px(samples[pi].x,S),py(samples[pi].y,S)); }
+    ctx.stroke();
     // waypoint markers for moveTo steps
     state.route.forEach(function(s,i){ if(s.type!=='moveTo')return; var X=px(s.x,S),Y=py(s.y,S);
       var sel=(i===state.selected);
@@ -629,8 +628,9 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
     [['moveTo','+ Move To'],['turnTo','+ Turn'],['drive','+ Drive'],['intakeIn','+ Intake'],['clamp','+ Clamp'],['wait','+ Wait'],['note','+ Comment']].forEach(function(a){
       var b=document.createElement('button'); b.className='addbtn'; b.textContent=a[1]; b.onclick=function(){ addStep(a[0]); }; ab.appendChild(b); });
   }
+  function insertStep(s){ var at=state.selected<0?state.route.length:Math.min(state.selected+1,state.route.length); state.route.splice(at,0,s); state.selected=at; }
   function addStep(type){ var s=newStep(type); if(type==='moveTo'){ var last=lastPoint(); s.x=Math.round(clamp(last.x+10,-BOUND,BOUND)); s.y=Math.round(last.y); }
-    var at=state.selected+1; state.route.splice(at,0,s); state.selected=at; refresh(); }
+    insertStep(s); refresh(); }
   function lastPoint(){ var p={x:state.start.x,y:state.start.y}; for(var i=0;i<=state.selected&&i<state.route.length;i++){ var s=state.route[i]; if(s.type==='moveTo')p={x:s.x,y:s.y}; } return p; }
 
   // ---------------- panels update --------------------------------------------
@@ -690,7 +690,7 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
     if(t.dataset.sel!==undefined){ var s=+t.dataset.sel; state.selected=(state.selected===s?-1:s); state.t=stepCursor(state.selected<0?s:state.selected); renderEditor(); update(); return; }
   });
   document.getElementById('stepList').addEventListener('input',function(e){ var t=e.target, i=+t.dataset.i, k=t.dataset.k; if(k===undefined||isNaN(i))return;
-    var s=state.route[i]; if(k==='forwards'){ s.forwards=(t.value==='1'); } else if(k==='text'||k==='label'){ s[k]=t.value; } else { var v=parseFloat(t.value); s[k]=isNaN(v)?0:v; }
+    var s=state.route[i]; if(k==='forwards'){ s.forwards=(t.value==='1'); } else if(k==='text'||k==='label'){ s[k]=t.value; } else { var v=parseFloat(t.value); if(!isNaN(v)) s[k]=v; } // keep old value while a number field is mid-edit/empty
     buildSim(); update(); if(k==='text') renderEditor(); });
   function stepCursor(i){ var s=state.route[i]; return s&&s._t0!==undefined?clamp(s._t1-0.001,0,TOTAL):0; }
 
@@ -702,12 +702,12 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
     for(var i=0;i<state.route.length;i++){ var s=state.route[i]; if(s.type!=='moveTo')continue; var X=px(s.x,S),Y=py(s.y,S); if(Math.hypot(mx-X,my-Y)<10){ drag={i:i}; state.selected=i; renderEditor(); update(); return; } }
     // else add a new moveTo at click
     var f=toField(mx,my,S); var s2=newStep('moveTo',Math.round(clamp(f.x,-BOUND,BOUND)),Math.round(clamp(f.y,-BOUND,BOUND)));
-    var at=state.selected+1; state.route.splice(at,0,s2); state.selected=at; refresh();
+    insertStep(s2); refresh();
   });
   window.addEventListener('mousemove',function(e){ if(!drag)return; var r=fieldCv.getBoundingClientRect(),S=fieldCv._w;
     var mx=(e.clientX-r.left)*(S/r.width), my=(e.clientY-r.top)*(S/r.width); var f=toField(mx,my,S);
-    var s=state.route[drag.i]; s.x=Math.round(clamp(f.x,-BOUND,BOUND)); s.y=Math.round(clamp(f.y,-BOUND,BOUND)); buildSim(); renderEditor(); update(); });
-  window.addEventListener('mouseup',function(){ drag=null; });
+    var s=state.route[drag.i]; s.x=Math.round(clamp(f.x,-BOUND,BOUND)); s.y=Math.round(clamp(f.y,-BOUND,BOUND)); drag.moved=true; buildSim(); update(); }); // no renderEditor per frame; sync inputs on mouseup
+  window.addEventListener('mouseup',function(){ if(drag&&drag.moved) renderEditor(); drag=null; });
 
   // alliance
   document.getElementById('alliance').addEventListener('click',function(e){ var a=e.target.dataset.a; if(!a||a===state.alliance)return;
@@ -731,7 +731,7 @@ window.onerror = function (m, s, l) { var e = document.getElementById('err'); e.
   document.getElementById('copyBtn').onclick=function(){ var b=this; navigator.clipboard.writeText(plainCode()).then(function(){ b.textContent='copied'; b.classList.add('done'); setTimeout(function(){b.textContent='copy';b.classList.remove('done');},1400); }); };
   document.getElementById('exportBtn').onclick=function(){ var data=JSON.stringify({alliance:state.alliance,start:state.start,route:state.route},null,2); navigator.clipboard.writeText(data); this.textContent='copied JSON'; var b=this; setTimeout(function(){b.textContent='export JSON';},1400); };
   document.getElementById('importBtn').onclick=function(){ var j=prompt('Paste route JSON:'); if(!j)return; try{ var d=JSON.parse(j); if(d.route){ state.route=d.route; state.start=d.start||state.start; state.alliance=d.alliance||state.alliance; state.selected=0; refresh(); } }catch(err){ alert('Invalid JSON'); } };
-  document.getElementById('routineName').addEventListener('input',function(){ state.routineName=this.value.replace(/[^A-Za-z0-9_]/g,'')||'autonomous'; renderCode(); });
+  document.getElementById('routineName').addEventListener('input',function(){ state.routineName=this.value.replace(/[^A-Za-z0-9_]/g,'')||'autonomous'; persist(); renderCode(); });
   document.getElementById('setupChk').addEventListener('change',function(){ state.includeSetup=this.checked; persist(); renderCode(); });
   document.getElementById('resetBtn').onclick=function(){ state.route=defaultRoute(); state.start={x:-52,y:36,h:90}; state.alliance='red'; state.selected=2; [].forEach.call(document.getElementById('alliance').children,function(b){b.className=(b.dataset.a==='red'?'on red':'');}); refresh(); };
 
